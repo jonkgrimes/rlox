@@ -35,7 +35,7 @@ impl OpCode {
 }
 
 pub struct Chunk {
-  code: Vec<OpCode>,
+  pub code: Vec<OpCode>,
   lines: Vec<u32>,
   constants: Vec<Value>
 }
