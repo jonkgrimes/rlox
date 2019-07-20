@@ -1,7 +1,6 @@
-use std::fmt;
-
 use crate::value::Value;
 
+#[derive(Debug)]
 pub enum OpCode {
   Return,
   Constant(usize)
@@ -37,7 +36,7 @@ impl OpCode {
 pub struct Chunk {
   pub code: Vec<OpCode>,
   lines: Vec<u32>,
-  constants: Vec<Value>
+  pub constants: Vec<Value>
 }
 
 impl Chunk {
