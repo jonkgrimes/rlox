@@ -3,7 +3,8 @@ use crate::value::Value;
 #[derive(Debug)]
 pub enum OpCode {
   Return,
-  Constant(usize)
+  Negate,
+  Constant(usize),
 }
 
 impl OpCode {
@@ -16,7 +17,7 @@ impl OpCode {
         } else {
           format!("{:04}", line)
         }
-      },
+      }
       None => {
         "1".to_string() // shouldn't ever happen
       }
@@ -36,12 +37,16 @@ impl OpCode {
 pub struct Chunk {
   pub code: Vec<OpCode>,
   lines: Vec<u32>,
-  pub constants: Vec<Value>
+  pub constants: Vec<Value>,
 }
 
 impl Chunk {
   pub fn new() -> Chunk {
-    Chunk { code: Vec::new(), constants: Vec::new(), lines: Vec::new() }
+    Chunk {
+      code: Vec::new(),
+      constants: Vec::new(),
+      lines: Vec::new(),
+    }
   }
 
   pub fn write_chunk(&mut self, op_code: OpCode, line_number: u32) {
@@ -51,7 +56,7 @@ impl Chunk {
 
   pub fn add_constant(&mut self, constant: Value) -> usize {
     self.constants.push(constant);
-    self.constants.len() - 1 
+    self.constants.len() - 1
   }
 
   pub fn disassemble(&self, name: &str) {

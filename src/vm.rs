@@ -49,6 +49,9 @@ impl Vm {
           println!("{}", self.pop());
           break VmResult::Ok;
         }
+        OpCode::Negate => {
+          println!("{}", -self.pop());
+        },
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);
           if let Some(constant) = constant {
