@@ -1,17 +1,62 @@
+extern crate rustyline;
+
+use std::error::Error;
+use std::fs::File;
+use std::io;
+use std::io::prelude::*;
+use std::io::BufReader;
+
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
+
 mod chunk;
 mod value;
 mod vm;
+mod compiler;
+mod scanner;
+mod token;
 
 use chunk::{Chunk, OpCode};
-use vm::Vm;
+use vm::{Vm, VmResult};
 
-pub fn run() {
-  let mut chunk = Chunk::new();
-  let index = chunk.add_constant(1.2);
-  chunk.write_chunk(OpCode::Constant(index), 123);
-  chunk.write_chunk(OpCode::Return, 123);
+pub fn repl() -> io::Result<()> {
+  let mut rl = Editor::<()>::new();
+  rl.load_history("~/.lox_history").ok();
+  loop {
+    let readline = rl.readline("lox > ");
+    match readline {
+      Ok(line) => {
+        rl.add_history_entry(&line);
+        interpret(&line);
+      }
+      Err(ReadlineError::Interrupted) => {
+        println!("Exiting...");
+        break;
+      }
+      Err(err) => {
+        eprintln!("Unrecoverable error: {:?}", err);
+        break;
+      }
+    }
+  }
 
-  let mut vm = Vm::new(chunk);
+  rl.save_history("~/.lox_history").ok();
+  Ok(())
+}
 
-  vm.interpret();
+pub fn run_file(path: &str) -> io::Result<()> {
+  let file = File::open(path)?;
+  let mut buf_reader = BufReader::new(file);
+  let mut contents = String::new();
+  buf_reader.read_to_string(&mut contents)?;
+  match interpret(&contents) {
+    VmResult::CompileError => std::process::exit(65),
+    VmResult::RuntimeError => std::process::exit(70),
+    VmResult::Ok => std::process::exit(0),
+  }
+}
+
+fn interpret(line: &str) -> VmResult {
+  let mut vm = Vm::new();
+  vm.interpret(line)
 }

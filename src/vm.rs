@@ -1,7 +1,16 @@
+use crate::compiler::compile;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
 
 const STACK_MAX: usize = 256;
+
+macro_rules! bin_op {
+  ( $self:ident, $op:tt ) => {{
+    let a = $self.pop();
+    let b = $self.pop();
+    $self.push(a $op b);
+  }};
+}
 
 pub struct Vm {
   chunk: Chunk,
@@ -11,23 +20,23 @@ pub struct Vm {
 }
 
 pub enum VmResult {
-  Noop,
   Ok,
   CompileError,
   RuntimeError,
 }
 
 impl Vm {
-  pub fn new(chunk: Chunk) -> Vm {
+  pub fn new() -> Vm {
     Vm {
-      chunk,
+      chunk: Chunk::new(),
       ip: 0,
       stack: [0f32; STACK_MAX],
       stack_top: 0,
     }
   }
 
-  pub fn interpret(&mut self) -> VmResult {
+  pub fn interpret(&mut self, source: &str) -> VmResult {
+    compile(source);
     self.run()
   }
 
@@ -49,9 +58,22 @@ impl Vm {
           println!("{}", self.pop());
           break VmResult::Ok;
         }
+        OpCode::Add => {
+          bin_op!(self, +);
+        }
+        OpCode::Subtract => {
+          bin_op!(self, -);
+        }
+        OpCode::Multiply => {
+          bin_op!(self, *);
+        }
+        OpCode::Divide => {
+          bin_op!(self, /);
+        }
         OpCode::Negate => {
-          println!("{}", -self.pop());
-        },
+          let value = -self.pop();
+          self.push(value);
+        }
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);
           if let Some(constant) = constant {
@@ -77,13 +99,5 @@ impl Vm {
     self.stack_top -= 1;
     let value = self.stack[self.stack_top];
     value
-  }
-
-  fn print_stack(&mut self) {
-    println!("        ");
-    for i in 0..self.stack_top {
-      println!("[{}]", self.stack[i]);
-    }
-    println!("        ");
   }
 }

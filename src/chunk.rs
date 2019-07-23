@@ -4,6 +4,10 @@ use crate::value::Value;
 pub enum OpCode {
   Return,
   Negate,
+  Add,
+  Subtract,
+  Multiply,
+  Divide,
   Constant(usize),
 }
 
@@ -25,6 +29,11 @@ impl OpCode {
     prefix.push_str(&line_number);
     match self {
       OpCode::Return => println!("{} Return", prefix),
+      OpCode::Add => println!("{} Add\t", prefix),
+      OpCode::Subtract => println!("{} Subtract\t", prefix),
+      OpCode::Multiply => println!("{} Multiply\t", prefix),
+      OpCode::Divide => println!("{} Divide\t", prefix),
+      OpCode::Negate => println!("{} Negate\t", prefix),
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);
