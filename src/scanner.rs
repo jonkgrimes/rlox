@@ -29,12 +29,32 @@ impl<'a> Scanner<'a> {
       );
     }
 
-    Token::new(
-      TokenKind::Error,
-      self.start,
-      self.current - self.start,
-      self.line,
-    )
+    match self.advance() {
+      Some("(") => self.make_token(TokenKind::LeftParen),
+      Some(")") => self.make_token(TokenKind::RightParen),
+      _ => {
+        Token::new(
+          TokenKind::Error("Unexpected token.".to_string()),
+          self.start,
+          self.current - self.start,
+          self.line,
+        )
+      }
+    }
+  }
+
+  fn advance(&mut self) -> Option<&str> {
+    self.current += 1;
+    self.source.get((self.current - 1)..self.current)
+  }
+
+  fn make_token(&self, kind: TokenKind) -> Token {
+    Token {
+      kind,
+      start: self.current,
+      length: self.current - self.start,
+      line: self.line,
+    }
   }
 
   pub fn at_end(&mut self) -> bool {

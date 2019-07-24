@@ -62,6 +62,6 @@ pub enum TokenKind {
     Var,
     While,
 
-    Error,
+    Error(String),
     Eof,
 }
