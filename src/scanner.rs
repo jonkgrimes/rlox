@@ -207,27 +207,25 @@ impl<'a> Scanner<'a> {
       Some("f") => {
         if self.current - self.start > 1 {
           let c = self.source.get((self.start + 1)..(self.start + 2));
-          dbg!(c);
           match c {
-            Some("a") => self.check_keyword(2, 3, "lse", TokenKind::False),
-            Some("o") => self.check_keyword(2, 1, "r", TokenKind::For),
-            Some("u") => self.check_keyword(2, 1, "n", TokenKind::Fun),
+            Some("a") => self.check_keyword(3, 3, "lse", TokenKind::False),
+            Some("o") => self.check_keyword(1, 1, "r", TokenKind::For),
+            Some("u") => self.check_keyword(1, 1, "n", TokenKind::Fun),
             _ => TokenKind::Error("Unexpected character".to_string()),
           }
         } else {
           TokenKind::Error("Unexpected character".to_string())
         }
       }
-      Some("i") => self.check_keyword(2, 1, "f", TokenKind::If),
+      Some("i") => self.check_keyword(1, 1, "f", TokenKind::If),
       Some("n") => self.check_keyword(2, 2, "il", TokenKind::Nil),
-      Some("o") => self.check_keyword(2, 1, "o", TokenKind::Nil),
-      Some("p") => self.check_keyword(2, 4, "print", TokenKind::Print),
-      Some("r") => self.check_keyword(2, 5, "eturn", TokenKind::Return),
-      Some("s") => self.check_keyword(2, 4, "uper", TokenKind::Super),
+      Some("o") => self.check_keyword(2, 1, "o", TokenKind::Or),
+      Some("p") => self.check_keyword(4, 4, "rint", TokenKind::Print),
+      Some("r") => self.check_keyword(5, 5, "eturn", TokenKind::Return),
+      Some("s") => self.check_keyword(4, 4, "uper", TokenKind::Super),
       Some("t") => {
         if self.current - self.start > 1 {
           let c = self.source.get((self.start + 1)..(self.start + 2));
-          dbg!(c);
           match c {
             Some("h") => self.check_keyword(2, 2, "is", TokenKind::This),
             Some("r") => self.check_keyword(2, 2, "ue", TokenKind::True),
@@ -252,7 +250,6 @@ impl<'a> Scanner<'a> {
   ) -> TokenKind {
     let start = self.current - start;
     let range = start..(start + length);
-    dbg!(self.source.get(range.clone()));
     if self.source.get(range) == Some(rest) {
       return kind;
     }
