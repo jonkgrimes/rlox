@@ -207,6 +207,7 @@ impl<'a> Scanner<'a> {
       Some("f") => {
         if self.current - self.start > 1 {
           let c = self.source.get((self.start + 1)..(self.start + 2));
+          dbg!(c);
           match c {
             Some("a") => self.check_keyword(2, 3, "lse", TokenKind::False),
             Some("o") => self.check_keyword(2, 1, "r", TokenKind::For),
@@ -224,8 +225,6 @@ impl<'a> Scanner<'a> {
       Some("r") => self.check_keyword(2, 5, "eturn", TokenKind::Return),
       Some("s") => self.check_keyword(2, 4, "uper", TokenKind::Super),
       Some("t") => {
-        dbg!(self.current);
-        dbg!(self.start);
         if self.current - self.start > 1 {
           let c = self.source.get((self.start + 1)..(self.start + 2));
           dbg!(c);
