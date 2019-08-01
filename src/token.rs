@@ -12,6 +12,15 @@ impl Token {
       kind, start, length, line
     }
   }
+
+  pub fn error(message: &str, start: usize, current: usize, line: i32) -> Token {
+    Token::new(
+      TokenKind::Error(message.to_string()),
+      start,
+      current - start,
+      line,
+   )
+  }
 }
 
 #[derive(Debug,  PartialEq)]
