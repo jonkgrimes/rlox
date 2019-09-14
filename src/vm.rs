@@ -36,7 +36,9 @@ impl Vm {
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    compile(source);
+    if !compile(source, &mut self.chunk) {
+      return VmResult::CompileError;
+    }
     self.run()
   }
 
@@ -45,11 +47,7 @@ impl Vm {
       let op_code = &self.chunk.code[self.ip];
 
       if cfg!(feature = "debug") {
-        println!("        ");
-        for i in 0..self.stack_top {
-          println!("[{}]", self.stack[i]);
-        }
-        println!("        ");
+        self.print_stack();
         op_code.disassemble_instruction(&self.chunk, self.ip);
       }
 
@@ -99,5 +97,13 @@ impl Vm {
     self.stack_top -= 1;
     let value = self.stack[self.stack_top];
     value
+  }
+
+  fn print_stack(&self) {
+    println!("        ");
+    for i in 0..self.stack_top {
+      println!("[{}]", self.stack[i]);
+    }
+    println!("        ");
   }
 }

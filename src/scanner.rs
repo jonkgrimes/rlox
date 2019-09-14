@@ -2,7 +2,7 @@ use crate::token::{Token, TokenKind};
 
 pub struct Scanner<'a> {
   source: &'a str,
-  start: usize,
+  pub start: usize,
   current: usize,
   line: i32,
 }
@@ -254,6 +254,10 @@ impl<'a> Scanner<'a> {
       return kind;
     }
     TokenKind::Identifier
+  }
+
+  pub fn line(&self) -> i32  {
+    self.line
   }
 }
 
