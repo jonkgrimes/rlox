@@ -182,9 +182,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn number(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("number()");
     if let Some(token) = &compiler.previous {
-      println!("token = {:?}", token);
       let source = compiler
         .source
         .get(token.start..(token.start + token.length));
@@ -223,7 +221,6 @@ impl<'a> Compiler<'a> {
   }
 
   fn binary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("binary()");
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     let rule = compiler.get_rule(&operator);
     compiler.parse_precedence(rule.precedence, scanner, chunk);
