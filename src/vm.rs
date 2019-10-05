@@ -8,7 +8,7 @@ macro_rules! bin_op {
   ( $self:ident, $op:tt ) => {{
     let a = $self.pop();
     let b = $self.pop();
-    $self.push(a $op b);
+    $self.push(b $op a);
   }};
 }
 
@@ -100,10 +100,8 @@ impl Vm {
   }
 
   fn print_stack(&self) {
-    println!("        ");
     for i in 0..self.stack_top {
       println!("[{}]", self.stack[i]);
     }
-    println!("        ");
   }
 }

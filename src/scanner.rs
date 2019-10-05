@@ -18,14 +18,9 @@ impl<'a> Scanner<'a> {
   }
 
   pub fn scan_token(&mut self) -> Token {
-    println!("scan_token");
-    println!("self.start = {}", self.start);
-    println!("self.current = {}", self.current);
     self.skip_whitespace();
 
     self.start = self.current;
-    println!("self.start = {}", self.start);
-    println!("self.current = {}", self.current);
 
     if self.at_end() {
       return self.make_token(TokenKind::Eof);

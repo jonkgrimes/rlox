@@ -64,11 +64,8 @@ impl<'a> Compiler<'a> {
 
   fn compile(&mut self, source: &str, chunk: &mut Chunk) -> bool {
     let mut scanner = Scanner::new(source);
-    println!("Scanning source");
     self.advance(&mut scanner);
-    println!("Perparing to walk the tokens");
     self.expression(&mut scanner, chunk);
-    println!("Preparing to consume generated tokens");
     self.consume(
       &mut scanner,
       TokenKind::Eof,
@@ -127,9 +124,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn parse_precedence(&mut self, precedence: Precedence, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("Parse precendence of {:?}", precedence);
     self.advance(scanner);
-    println!("self.previous = {:?}", self.previous);
     let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
     if let Some(prefix_fn) = parse_rule.prefix {
       prefix_fn(self, scanner, chunk);
@@ -173,7 +168,6 @@ impl<'a> Compiler<'a> {
   }
 
   fn number(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("Number expression");
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -192,7 +186,6 @@ impl<'a> Compiler<'a> {
   }
 
   fn grouping(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("Grouping expression");
     compiler.expression(scanner, chunk);
     compiler.consume(
       scanner,
@@ -202,7 +195,6 @@ impl<'a> Compiler<'a> {
   }
 
   fn unary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("Unary expression");
     compiler.parse_precedence(Precedence::Unary, scanner, chunk);
     compiler.expression(scanner, chunk);
 
@@ -215,7 +207,6 @@ impl<'a> Compiler<'a> {
   }
 
   fn binary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    println!("Binary expression");
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     let rule = compiler.get_rule(&operator);
     compiler.parse_precedence(rule.precedence, scanner, chunk);
