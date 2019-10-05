@@ -18,9 +18,14 @@ impl<'a> Scanner<'a> {
   }
 
   pub fn scan_token(&mut self) -> Token {
+    println!("scan_token");
+    println!("self.start = {}", self.start);
+    println!("self.current = {}", self.current);
     self.skip_whitespace();
 
     self.start = self.current;
+    println!("self.start = {}", self.start);
+    println!("self.current = {}", self.current);
 
     if self.at_end() {
       return self.make_token(TokenKind::Eof);
@@ -127,7 +132,7 @@ impl<'a> Scanner<'a> {
 
   fn skip_whitespace(&mut self) {
     loop {
-      match self.source.get(self.current..self.current + 1) {
+      match self.peek() {
         Some(" ") => {
           self.advance();
         }
@@ -142,7 +147,7 @@ impl<'a> Scanner<'a> {
           self.line += 1;
         }
         Some("/") => {
-          if self.peek() == Some("/") {
+          if self.peek_next() == Some("/") {
             loop {
               self.advance();
               if self.peek() == Some("\n") && !self.at_end() {
@@ -150,6 +155,7 @@ impl<'a> Scanner<'a> {
               }
             }
           }
+          return;
         }
         _ => break,
       }
@@ -256,7 +262,7 @@ impl<'a> Scanner<'a> {
     TokenKind::Identifier
   }
 
-  pub fn line(&self) -> i32  {
+  pub fn line(&self) -> i32 {
     self.line
   }
 }

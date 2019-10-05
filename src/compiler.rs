@@ -7,7 +7,7 @@ use crate::token::{Token, TokenKind};
 
 pub struct CompilerError(String);
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd)]
 enum Precedence {
   None,
   Assignment,
@@ -28,6 +28,16 @@ struct ParseRule {
   pub prefix: Option<ParseFn>,
   pub infix: Option<ParseFn>,
   pub precedence: Precedence,
+}
+
+impl ParseRule {
+  fn new(prefix: Option<ParseFn>, infix: Option<ParseFn>, precedence: Precedence) -> Self {
+    ParseRule {
+      prefix,
+      infix,
+      precedence,
+    }
+  }
 }
 
 struct Compiler<'a> {
@@ -54,8 +64,11 @@ impl<'a> Compiler<'a> {
 
   fn compile(&mut self, source: &str, chunk: &mut Chunk) -> bool {
     let mut scanner = Scanner::new(source);
+    println!("Scanning source");
     self.advance(&mut scanner);
+    println!("Perparing to walk the tokens");
     self.expression(&mut scanner, chunk);
+    println!("Preparing to consume generated tokens");
     self.consume(
       &mut scanner,
       TokenKind::Eof,
@@ -114,7 +127,9 @@ impl<'a> Compiler<'a> {
   }
 
   fn parse_precedence(&mut self, precedence: Precedence, scanner: &mut Scanner, chunk: &mut Chunk) {
+    println!("Parse precendence of {:?}", precedence);
     self.advance(scanner);
+    println!("self.previous = {:?}", self.previous);
     let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
     if let Some(prefix_fn) = parse_rule.prefix {
       prefix_fn(self, scanner, chunk);
@@ -139,41 +154,17 @@ impl<'a> Compiler<'a> {
 
   fn get_rule(&mut self, operator: &TokenKind) -> ParseRule {
     match operator {
-      TokenKind::LeftParen => ParseRule {
-        prefix: Some(Compiler::grouping),
-        infix: None,
-        precedence: Precedence::None,
-      },
-      TokenKind::Minus => ParseRule {
-        prefix: Some(Compiler::unary),
-        infix: Some(Compiler::binary),
-        precedence: Precedence::Term,
-      },
-      TokenKind::Plus => ParseRule {
-        prefix: None,
-        infix: Some(Compiler::binary),
-        precedence: Precedence::Term,
-      },
-      TokenKind::Slash => ParseRule {
-        prefix: None,
-        infix: Some(Compiler::binary),
-        precedence: Precedence::Factor,
-      },
-      TokenKind::Star => ParseRule {
-        prefix: None,
-        infix: Some(Compiler::binary),
-        precedence: Precedence::Factor,
-      },
-      TokenKind::Number => ParseRule {
-        prefix: Some(Compiler::number),
-        infix: None,
-        precedence: Precedence::None,
-      },
-      _ => ParseRule {
-        prefix: None,
-        infix: None,
-        precedence: Precedence::None,
-      },
+      TokenKind::LeftParen => ParseRule::new(Some(Compiler::grouping), None, Precedence::None),
+      TokenKind::Minus => ParseRule::new(
+        Some(Compiler::unary),
+        Some(Compiler::binary),
+        Precedence::Term,
+      ),
+      TokenKind::Plus => ParseRule::new(None, Some(Compiler::binary), Precedence::Term),
+      TokenKind::Slash => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
+      TokenKind::Star => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
+      TokenKind::Number => ParseRule::new(Some(Compiler::number), None, Precedence::None),
+      _ => ParseRule::new(None, None, Precedence::None),
     }
   }
 
@@ -182,6 +173,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn number(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    println!("Number expression");
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -200,6 +192,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn grouping(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    println!("Grouping expression");
     compiler.expression(scanner, chunk);
     compiler.consume(
       scanner,
@@ -209,6 +202,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn unary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    println!("Unary expression");
     compiler.parse_precedence(Precedence::Unary, scanner, chunk);
     compiler.expression(scanner, chunk);
 
@@ -221,6 +215,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn binary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    println!("Binary expression");
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     let rule = compiler.get_rule(&operator);
     compiler.parse_precedence(rule.precedence, scanner, chunk);
