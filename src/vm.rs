@@ -6,9 +6,23 @@ const STACK_MAX: usize = 256;
 
 macro_rules! bin_op {
   ( $self:ident, $op:tt ) => {{
-    let a = $self.pop();
-    let b = $self.pop();
-    $self.push(b $op a);
+    let a = $self.peek(0);
+    let b = $self.peek(1);
+    match a {
+      Value::Number(a_num) => match b {
+        Value::Number(b_num) => {
+          $self.pop();
+          $self.pop();
+          $self.push(b $op a);
+        },
+        _ => {
+          break VmResult::RuntimeError(String::from("Operands must be numbers."));
+        }
+      },
+      _ => {
+        break VmResult::RuntimeError(String::from("Operands must be numbers."));
+      }
+    }
   }};
 }
 
@@ -22,7 +36,7 @@ pub struct Vm {
 pub enum VmResult {
   Ok,
   CompileError,
-  RuntimeError,
+  RuntimeError(String),
 }
 
 impl Vm {
@@ -30,7 +44,7 @@ impl Vm {
     Vm {
       chunk: Chunk::new(),
       ip: 0,
-      stack: [0f32; STACK_MAX],
+      stack: [Value::Nil; STACK_MAX],
       stack_top: 0,
     }
   }
@@ -53,7 +67,7 @@ impl Vm {
 
       match op_code {
         OpCode::Return => {
-          println!("{}", self.pop());
+          println!("=> {}", self.pop());
           break VmResult::Ok;
         }
         OpCode::Add => {
@@ -69,8 +83,19 @@ impl Vm {
           bin_op!(self, /);
         }
         OpCode::Negate => {
-          let value = -self.pop();
-          self.push(value);
+          let value = self.peek(0);
+          match value {
+            Value::Number(_) => {
+              if let Value::Number(number) = self.pop() {
+                self.push(Value::Number(-number));
+              } else {
+                break VmResult::RuntimeError(String::from(
+                  "This is unreachable code. How you got here no one knows.",
+                ));
+              }
+            }
+            _ => break VmResult::RuntimeError(String::from("Operand must be a number.")),
+          }
         }
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);
@@ -97,6 +122,11 @@ impl Vm {
     self.stack_top -= 1;
     let value = self.stack[self.stack_top];
     value
+  }
+
+  fn peek(&mut self, distance: usize) -> Value {
+    let peek_index = self.stack_top - distance - 1;
+    self.stack[peek_index]
   }
 
   fn print_stack(&self) {

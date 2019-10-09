@@ -4,6 +4,7 @@ use crate::chunk::Chunk;
 use crate::chunk::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
+use crate::value::Value;
 
 pub struct CompilerError(String);
 
@@ -176,7 +177,7 @@ impl<'a> Compiler<'a> {
         Some(code) => {
           let value = f32::from_str(code).ok();
           if let Some(constant) = value {
-            let index = chunk.add_constant(constant);
+            let index = chunk.add_constant(Value::Number(constant));
             chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
           }
         }

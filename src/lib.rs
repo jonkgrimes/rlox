@@ -51,7 +51,9 @@ pub fn run_file(path: &str) -> io::Result<()> {
   buf_reader.read_to_string(&mut contents)?;
   match interpret(&contents) {
     VmResult::CompileError => std::process::exit(65),
-    VmResult::RuntimeError => std::process::exit(70),
+    VmResult::RuntimeError(_) => {
+      std::process::exit(70)
+    },
     VmResult::Ok => std::process::exit(0),
   }
 }
