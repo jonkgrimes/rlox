@@ -113,7 +113,7 @@ impl<'a> Compiler<'a> {
       TokenKind::Error(_) => (),
       _ => {
         let range = token.start..(token.start + token.length);
-        print!(" at '{}'", self.source.get(range).unwrap());
+        println!(" at '{}'", self.source.get(range).unwrap());
       }
     }
   }
@@ -195,10 +195,11 @@ impl<'a> Compiler<'a> {
   }
 
   fn unary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    compiler.parse_precedence(Precedence::Unary, scanner, chunk);
-    compiler.expression(scanner, chunk);
+    let operator = compiler.previous.as_ref().unwrap().kind.clone();
 
-    match compiler.previous.as_ref().unwrap().kind {
+    compiler.parse_precedence(Precedence::Unary, scanner, chunk);
+
+    match operator {
       TokenKind::Minus => {
         chunk.write_chunk(OpCode::Negate, scanner.line() as u32);
       }
