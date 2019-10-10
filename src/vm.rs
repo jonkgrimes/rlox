@@ -1,7 +1,6 @@
 use crate::compiler::compile;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
-use std::ops::Add;
 
 const STACK_MAX: usize = 256;
 
@@ -91,6 +90,19 @@ impl Vm {
           } else {
             break VmResult::RuntimeError(String::from("Operand must be a number."));
           }
+        }
+        OpCode::Not => {
+          let a = self.pop();
+          self.push(Value::Bool(a.is_falsey()));
+        }
+        OpCode::Nil => {
+          self.push(Value::Nil);
+        }
+        OpCode::True => {
+          self.push(Value::Bool(true));
+        }
+        OpCode::False => {
+          self.push(Value::Bool(false));
         }
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);

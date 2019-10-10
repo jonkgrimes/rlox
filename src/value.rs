@@ -25,6 +25,15 @@ impl Value {
     }
   }
 
+  pub fn is_falsey(&self) -> bool {
+    match self {
+      Value::Nil => true,
+      Value::Bool(true) => false,
+      Value::Bool(false) => true,
+      Value::Number(_) => false,
+    }
+  }
+
   fn is_nil(&self) -> bool {
     match self {
       Value::Nil => true,

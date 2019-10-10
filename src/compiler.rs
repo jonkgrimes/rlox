@@ -156,6 +156,10 @@ impl<'a> Compiler<'a> {
         Some(Compiler::binary),
         Precedence::Term,
       ),
+      TokenKind::Bang => ParseRule::new(Some(Compiler::unary), None, Precedence::None),
+      TokenKind::False => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
+      TokenKind::True => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
+      TokenKind::Nil => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
       TokenKind::Plus => ParseRule::new(None, Some(Compiler::binary), Precedence::Term),
       TokenKind::Slash => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Star => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
@@ -204,6 +208,9 @@ impl<'a> Compiler<'a> {
       TokenKind::Minus => {
         chunk.write_chunk(OpCode::Negate, scanner.line() as u32);
       }
+      TokenKind::Bang => {
+        chunk.write_chunk(OpCode::Not, scanner.line() as u32);
+      }
       _ => (),
     }
   }
@@ -218,6 +225,16 @@ impl<'a> Compiler<'a> {
       TokenKind::Minus => chunk.write_chunk(OpCode::Subtract, scanner.line() as u32),
       TokenKind::Star => chunk.write_chunk(OpCode::Multiply, scanner.line() as u32),
       TokenKind::Slash => chunk.write_chunk(OpCode::Divide, scanner.line() as u32),
+      _ => (),
+    }
+  }
+
+  fn literal(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    let operator = compiler.previous.as_ref().unwrap().kind.clone();
+    match operator {
+      TokenKind::Nil => chunk.write_chunk(OpCode::Nil, scanner.line() as u32),
+      TokenKind::True => chunk.write_chunk(OpCode::True, scanner.line() as u32),
+      TokenKind::False => chunk.write_chunk(OpCode::False, scanner.line() as u32),
       _ => (),
     }
   }

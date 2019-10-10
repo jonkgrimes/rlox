@@ -9,6 +9,10 @@ pub enum OpCode {
   Multiply,
   Divide,
   Constant(usize),
+  Not,
+  Nil,
+  True,
+  False,
 }
 
 impl OpCode {
@@ -34,6 +38,10 @@ impl OpCode {
       OpCode::Multiply => println!("{} Multiply\t", prefix),
       OpCode::Divide => println!("{} Divide\t", prefix),
       OpCode::Negate => println!("{} Negate\t", prefix),
+      OpCode::Nil => println!("{} Nil", prefix),
+      OpCode::True => println!("{} True", prefix),
+      OpCode::False => println!("{} False", prefix),
+      OpCode::Not => println!("{} Not", prefix),
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);
