@@ -1,6 +1,7 @@
 use crate::compiler::compile;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
+use std::ops::Add;
 
 const STACK_MAX: usize = 256;
 
@@ -8,19 +9,12 @@ macro_rules! bin_op {
   ( $self:ident, $op:tt ) => {{
     let a = $self.peek(0);
     let b = $self.peek(1);
-    match a {
-      Value::Number(a_num) => match b {
-        Value::Number(b_num) => {
-          $self.pop();
-          $self.pop();
-          $self.push(b $op a);
-        },
-        _ => {
-          break VmResult::RuntimeError(String::from("Operands must be numbers."));
-        }
-      },
-      _ => {
-        break VmResult::RuntimeError(String::from("Operands must be numbers."));
+    if a.is_number() && b.is_number() {
+      let a = $self.pop();
+      let b = $self.pop();
+      match b $op a {
+        Ok(value) => $self.push(value),
+        Err(msg) => break VmResult::RuntimeError(String::from(msg))
       }
     }
   }};
@@ -84,17 +78,18 @@ impl Vm {
         }
         OpCode::Negate => {
           let value = self.peek(0);
-          match value {
-            Value::Number(_) => {
-              if let Value::Number(number) = self.pop() {
-                self.push(Value::Number(-number));
-              } else {
+          if value.is_number() {
+            let a = self.pop();
+            match -a {
+              Ok(value) => self.push(value),
+              Err(_) => {
                 break VmResult::RuntimeError(String::from(
                   "This is unreachable code. How you got here no one knows.",
                 ));
               }
             }
-            _ => break VmResult::RuntimeError(String::from("Operand must be a number.")),
+          } else {
+            break VmResult::RuntimeError(String::from("Operand must be a number."));
           }
         }
         OpCode::Constant(value) => {
