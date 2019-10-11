@@ -13,6 +13,9 @@ pub enum OpCode {
   Nil,
   True,
   False,
+  Equal,
+  Greater,
+  Less,
 }
 
 impl OpCode {
@@ -42,6 +45,9 @@ impl OpCode {
       OpCode::True => println!("{} True", prefix),
       OpCode::False => println!("{} False", prefix),
       OpCode::Not => println!("{} Not", prefix),
+      OpCode::Equal => println!("{} Equal",  prefix),
+      OpCode::Greater => println!("{} Greater",  prefix),
+      OpCode::Less => println!("{} Less",  prefix),
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);

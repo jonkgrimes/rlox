@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
   Bool(bool),

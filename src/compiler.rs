@@ -164,6 +164,12 @@ impl<'a> Compiler<'a> {
       TokenKind::Slash => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Star => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Number => ParseRule::new(Some(Compiler::number), None, Precedence::None),
+      TokenKind::BangEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Equality),
+      TokenKind::EqualEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Equality),
+      TokenKind::Greater => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
+      TokenKind::GreaterEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
+      TokenKind::Less => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
+      TokenKind::LessEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
       _ => ParseRule::new(None, None, Precedence::None),
     }
   }
@@ -220,11 +226,28 @@ impl<'a> Compiler<'a> {
     let rule = compiler.get_rule(&operator);
     compiler.parse_precedence(rule.precedence, scanner, chunk);
 
+    let line = scanner.line() as u32;
+
     match operator {
-      TokenKind::Plus => chunk.write_chunk(OpCode::Add, scanner.line() as u32),
-      TokenKind::Minus => chunk.write_chunk(OpCode::Subtract, scanner.line() as u32),
-      TokenKind::Star => chunk.write_chunk(OpCode::Multiply, scanner.line() as u32),
-      TokenKind::Slash => chunk.write_chunk(OpCode::Divide, scanner.line() as u32),
+      TokenKind::Plus => chunk.write_chunk(OpCode::Add, line),
+      TokenKind::Minus => chunk.write_chunk(OpCode::Subtract, line),
+      TokenKind::Star => chunk.write_chunk(OpCode::Multiply, line),
+      TokenKind::Slash => chunk.write_chunk(OpCode::Divide, line),
+      TokenKind::BangEqual => {
+        chunk.write_chunk(OpCode::Equal, line);
+        chunk.write_chunk(OpCode::Not, line);
+      },
+      TokenKind::EqualEqual => chunk.write_chunk(OpCode::Equal, line),
+      TokenKind::Greater => chunk.write_chunk(OpCode::Greater, line),
+      TokenKind::GreaterEqual => {
+        chunk.write_chunk(OpCode::Greater, line);
+        chunk.write_chunk(OpCode::Not, line);
+      }
+      TokenKind::Less => chunk.write_chunk(OpCode::Less, line),
+      TokenKind::LessEqual => {
+        chunk.write_chunk(OpCode::Less, line);
+        chunk.write_chunk(OpCode::Not, line);
+      }
       _ => (),
     }
   }

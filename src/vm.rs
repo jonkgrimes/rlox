@@ -104,6 +104,21 @@ impl Vm {
         OpCode::False => {
           self.push(Value::Bool(false));
         }
+        OpCode::Equal => {
+          let a = self.pop();
+          let b = self.pop();
+          self.push(Value::Bool(a == b));
+        }
+        OpCode::Greater => {
+          let a = self.pop();
+          let b = self.pop();
+          self.push(Value::Bool(b > a));
+        }
+        OpCode::Less => {
+          let a = self.pop();
+          let b = self.pop();
+          self.push(Value::Bool(b < a));
+        }
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);
           if let Some(constant) = constant {
