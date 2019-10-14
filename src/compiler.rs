@@ -170,6 +170,7 @@ impl<'a> Compiler<'a> {
       TokenKind::GreaterEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
       TokenKind::Less => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
       TokenKind::LessEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
+      TokenKind::String => ParseRule::new(Some(Compiler::string), None, Precedence::None),
       _ => ParseRule::new(None, None, Precedence::None),
     }
   }
@@ -190,6 +191,21 @@ impl<'a> Compiler<'a> {
             let index = chunk.add_constant(Value::Number(constant));
             chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
           }
+        }
+        None => (),
+      }
+    }
+  }
+
+  fn string(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    if let Some(token) = &compiler.previous {
+      let source = compiler.source
+        .get((token.start-1)..(token.start + token.length - 1));
+      match source {
+        Some(string) => {
+          let value = String::from(string);
+          let index = chunk.add_constant(Value::String(value));
+          chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
         }
         None => (),
       }
