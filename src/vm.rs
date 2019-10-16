@@ -23,6 +23,7 @@ pub struct Vm {
   chunk: Chunk,
   ip: usize,
   stack: [Value; STACK_MAX],
+  heap: Vec<String>,
   stack_top: usize,
 }
 
@@ -38,6 +39,7 @@ impl Vm {
       chunk: Chunk::new(),
       ip: 0,
       stack: [Value::Nil; STACK_MAX],
+      heap: Vec::new(),
       stack_top: 0,
     }
   }

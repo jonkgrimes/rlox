@@ -15,6 +15,7 @@ mod vm;
 mod compiler;
 mod scanner;
 mod token;
+mod object;
 
 use chunk::{Chunk, OpCode};
 use vm::{Vm, VmResult};

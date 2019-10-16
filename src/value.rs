@@ -6,40 +6,36 @@ pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
-  String(String)
+  String(*const String),
 }
 
 impl Value {
   pub fn is_number(&self) -> bool {
     match self {
-      Value::Nil => false,
-      Value::Bool(_) => false,
       Value::Number(_) => true,
+      _ => false,
     }
   }
 
   pub fn is_bool(&self) -> bool {
     match self {
-      Value::Nil => false,
       Value::Bool(_) => true,
-      Value::Number(_) => false,
+      _ => false,
     }
   }
 
   pub fn is_falsey(&self) -> bool {
     match self {
       Value::Nil => true,
-      Value::Bool(true) => false,
       Value::Bool(false) => true,
-      Value::Number(_) => false,
+      _ => false,
     }
   }
 
   fn is_nil(&self) -> bool {
     match self {
       Value::Nil => true,
-      Value::Bool(_) => false,
-      Value::Number(_) => false,
+      _ => false,
     }
   }
 }
@@ -50,6 +46,7 @@ impl fmt::Display for Value {
       Value::Nil => write!(f, "nil"),
       Value::Bool(value) => write!(f, "{}", value),
       Value::Number(value) => write!(f, "{}", value),
+      Value::String(value) => unsafe { write!(f, "{}", **value) },
     }
   }
 }

@@ -45,9 +45,9 @@ impl OpCode {
       OpCode::True => println!("{} True", prefix),
       OpCode::False => println!("{} False", prefix),
       OpCode::Not => println!("{} Not", prefix),
-      OpCode::Equal => println!("{} Equal",  prefix),
-      OpCode::Greater => println!("{} Greater",  prefix),
-      OpCode::Less => println!("{} Less",  prefix),
+      OpCode::Equal => println!("{} Equal", prefix),
+      OpCode::Greater => println!("{} Greater", prefix),
+      OpCode::Less => println!("{} Less", prefix),
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);
@@ -61,6 +61,7 @@ pub struct Chunk {
   pub code: Vec<OpCode>,
   lines: Vec<u32>,
   pub constants: Vec<Value>,
+  pub strings: Vec<String>,
 }
 
 impl Chunk {
@@ -68,6 +69,7 @@ impl Chunk {
     Chunk {
       code: Vec::new(),
       constants: Vec::new(),
+      strings: Vec::new(),
       lines: Vec::new(),
     }
   }
@@ -80,6 +82,11 @@ impl Chunk {
   pub fn add_constant(&mut self, constant: Value) -> usize {
     self.constants.push(constant);
     self.constants.len() - 1
+  }
+
+  pub fn add_string(&mut self, string: String) -> usize {
+    self.strings.push(string);
+    self.strings.len() - 1
   }
 
   pub fn disassemble(&self, name: &str) {
