@@ -23,7 +23,6 @@ pub struct Vm {
   chunk: Chunk,
   ip: usize,
   stack: [Value; STACK_MAX],
-  heap: Vec<String>,
   stack_top: usize,
 }
 

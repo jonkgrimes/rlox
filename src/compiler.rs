@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::chunk::Chunk;
 use crate::chunk::OpCode;
+use crate::object::ObjectString;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
 use crate::value::Value;
@@ -206,9 +207,9 @@ impl<'a> Compiler<'a> {
         .get((token.start + 1)..(token.start + token.length - 1));
       match source {
         Some(string) => {
-          let value = String::from(string);
-          let string_index = chunk.add_string(value);
-          let index = chunk.add_constant(Value::String(chunk.strings.get(string_index).unwrap()));
+          let value = ObjectString::new(string);
+          let object_idx = chunk.add_object(value);
+          let index = chunk.add_constant(Value::String(chunk.objects.get(object_idx).unwrap()));
           chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
         }
         None => (),

@@ -1,12 +1,14 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::object::Object;
+
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
-  String(*const String),
+  String(*const Box<dyn Object>),
 }
 
 impl Value {

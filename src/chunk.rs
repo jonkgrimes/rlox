@@ -1,3 +1,4 @@
+use crate::object::{Object, ObjectString};
 use crate::value::Value;
 
 #[derive(Debug)]
@@ -61,7 +62,7 @@ pub struct Chunk {
   pub code: Vec<OpCode>,
   lines: Vec<u32>,
   pub constants: Vec<Value>,
-  pub strings: Vec<String>,
+  pub objects: Vec<Box<dyn Object>>,
 }
 
 impl Chunk {
@@ -69,7 +70,7 @@ impl Chunk {
     Chunk {
       code: Vec::new(),
       constants: Vec::new(),
-      strings: Vec::new(),
+      objects: Vec::new(),
       lines: Vec::new(),
     }
   }
@@ -84,9 +85,9 @@ impl Chunk {
     self.constants.len() - 1
   }
 
-  pub fn add_string(&mut self, string: String) -> usize {
-    self.strings.push(string);
-    self.strings.len() - 1
+  pub fn add_object(&mut self, string: ObjectString) -> usize {
+    self.objects.push(Box::new(string));
+    self.objects.len() - 1
   }
 
   pub fn disassemble(&self, name: &str) {
