@@ -62,7 +62,7 @@ pub struct Chunk {
   pub code: Vec<OpCode>,
   lines: Vec<u32>,
   pub constants: Vec<Value>,
-  pub objects: Vec<Box<dyn Object>>,
+  pub objects: Vec<Box<Object>>,
 }
 
 impl Chunk {
@@ -85,8 +85,8 @@ impl Chunk {
     self.constants.len() - 1
   }
 
-  pub fn add_object(&mut self, string: ObjectString) -> usize {
-    self.objects.push(Box::new(string));
+  pub fn add_object(&mut self, object: Object) -> usize {
+    self.objects.push(Box::new(object));
     self.objects.len() - 1
   }
 

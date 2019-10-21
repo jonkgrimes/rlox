@@ -1,14 +1,14 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::object::Object;
+use crate::object::{Object, ObjectString};
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
-  String(*const Box<dyn Object>),
+  String(*const Box<Object>),
 }
 
 impl Value {
@@ -37,6 +37,13 @@ impl Value {
   fn is_nil(&self) -> bool {
     match self {
       Value::Nil => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_string(&self) -> bool {
+    match self {
+      Value::String(_) => true,
       _ => false,
     }
   }

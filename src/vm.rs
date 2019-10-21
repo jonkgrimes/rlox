@@ -1,4 +1,5 @@
 use crate::compiler::compile;
+use crate::object::{Object, ObjectString};
 use crate::value::Value;
 use crate::{Chunk, OpCode};
 
@@ -22,6 +23,7 @@ macro_rules! bin_op {
 pub struct Vm {
   chunk: Chunk,
   ip: usize,
+  heap: Vec<Box<Object>>,
   stack: [Value; STACK_MAX],
   stack_top: usize,
 }
@@ -36,9 +38,9 @@ impl Vm {
   pub fn new() -> Vm {
     Vm {
       chunk: Chunk::new(),
+      heap: Vec::new(),
       ip: 0,
       stack: [Value::Nil; STACK_MAX],
-      heap: Vec::new(),
       stack_top: 0,
     }
   }
@@ -65,7 +67,34 @@ impl Vm {
           break VmResult::Ok;
         }
         OpCode::Add => {
-          bin_op!(self, +);
+          let a = self.peek(0);
+          let b = self.peek(1);
+          match a {
+            Value::String(_) => match b {
+              Value::String(_) => {
+                let a = self.pop();
+                let b = self.pop();
+                if let Value::String(a_obj) = a {
+                  if let Value::String(b_obj) = b {
+                    unsafe {
+                      println!("a_obj = {:?}", a_obj);
+                      println!("b_obj = {:?}", b_obj);
+                      println!("Unsafe adding of two strings");
+                      if let Object::String(a_string) = &**a_obj {
+                        if let Object::String(b_string) = &**b_obj {
+                          let new_string = ObjectString::concat(a_string, b_string);
+                          self.heap.push(Box::new(Object::String(new_string)));
+                          self.push(Value::String(self.heap.last().unwrap()))
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              _ => break VmResult::RuntimeError(String::from("Operand must be a number.")),
+            },
+            _ => bin_op!(self, +),
+          }
         }
         OpCode::Subtract => {
           bin_op!(self, -);
