@@ -1,5 +1,5 @@
 use crate::compiler::compile;
-use crate::object::{Object, ObjectString};
+use crate::object::Object;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
 
@@ -70,25 +70,19 @@ impl Vm {
           let a = self.peek(0);
           let b = self.peek(1);
           match a {
-            Value::String(_) => match b {
-              Value::String(_) => {
-                let a = self.pop();
-                let b = self.pop();
-                if let Value::String(a_obj) = a {
-                  if let Value::String(b_obj) = b {
-                    unsafe {
-                      println!("a_obj = {:?}", a_obj);
-                      println!("b_obj = {:?}", b_obj);
-                      println!("Unsafe adding of two strings");
-                      if let Object::String(a_string) = &**a_obj {
-                        if let Object::String(b_string) = &**b_obj {
-                          let new_string = ObjectString::concat(a_string, b_string);
-                          self.heap.push(Box::new(Object::String(new_string)));
-                          self.push(Value::String(self.heap.last().unwrap()))
-                        }
-                      }
+            Value::String(a_ptr) => match b {
+              Value::String(b_ptr) => {
+                let boxed_a = unsafe { Box::from_raw(a_ptr) };
+                let boxed_b = unsafe { Box::from_raw(b_ptr) };
+                match *boxed_a {
+                  Object::String(string_a) => match *boxed_b {
+                    Object::String(string_b) => {
+                      let mut new_string = String::from(&string_b);
+                      new_string.push_str(&string_a);
+                      let new_object = Box::new(Object::String(new_string));
+                      self.push(Value::String(Box::into_raw(new_object)));
                     }
-                  }
+                  },
                 }
               }
               _ => break VmResult::RuntimeError(String::from("Operand must be a number.")),

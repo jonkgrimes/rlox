@@ -1,4 +1,4 @@
-use crate::object::{Object, ObjectString};
+use crate::object::Object;
 use crate::value::Value;
 
 #[derive(Debug)]

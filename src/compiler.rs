@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::chunk::Chunk;
 use crate::chunk::OpCode;
-use crate::object::{Object, ObjectString};
+use crate::object::Object;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
 use crate::value::Value;
@@ -207,14 +207,8 @@ impl<'a> Compiler<'a> {
         .get((token.start + 1)..(token.start + token.length - 1));
       match source {
         Some(string) => {
-          let value = ObjectString::new(string);
-          println!("value = {:p}", &value);
-          let object = Object::String(value);
-          println!("object = {:p}", &object);
-          let object_idx = chunk.add_object(object);
-          let object_ref = chunk.objects.get(object_idx).unwrap();
-          println!("object_ref = {:p}", object_ref);
-          let index = chunk.add_constant(Value::String(object_ref));
+          let value = Box::new(Object::String(String::from(string)));
+          let index = chunk.add_constant(Value::String(Box::into_raw(value)));
           chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
         }
         None => (),
