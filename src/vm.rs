@@ -72,6 +72,8 @@ impl Vm {
           match a {
             Value::String(a_ptr) => match b {
               Value::String(b_ptr) => {
+                self.pop();
+                self.pop();
                 let boxed_a = unsafe { Box::from_raw(a_ptr) };
                 let boxed_b = unsafe { Box::from_raw(b_ptr) };
                 match *boxed_a {
