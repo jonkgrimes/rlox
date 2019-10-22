@@ -77,6 +77,8 @@ impl Vm {
                 match *boxed_a {
                   Object::String(string_a) => match *boxed_b {
                     Object::String(string_b) => {
+                      println!("string_a = '{}'", string_a);
+                      println!("string_b = '{}'", string_b);
                       let mut new_string = String::from(&string_b);
                       new_string.push_str(&string_a);
                       let new_object = Box::new(Object::String(new_string));
