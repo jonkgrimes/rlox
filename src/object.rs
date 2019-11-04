@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, Hash, Eq, PartialEq, PartialOrd)]
 pub enum Object {
   String(String),
 }

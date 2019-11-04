@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::str::FromStr;
 
 use crate::chunk::Chunk;
@@ -44,20 +45,22 @@ impl ParseRule {
 
 struct Compiler<'a> {
   source: &'a str,
+  strings: &'a mut HashSet<String>,
   current: Option<Token>,
   previous: Option<Token>,
   had_error: bool,
 }
 
-pub fn compile(source: &str, chunk: &mut Chunk) -> bool {
-  let mut compiler = Compiler::new(source);
+pub fn compile(source: &str, chunk: &mut Chunk, strings: &mut HashSet<String>) -> bool {
+  let mut compiler = Compiler::new(source, strings);
   compiler.compile(source, chunk)
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &str) -> Compiler {
+  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
     Compiler {
       source,
+      strings,
       current: None,
       previous: None,
       had_error: false,
@@ -207,7 +210,11 @@ impl<'a> Compiler<'a> {
         .get((token.start + 1)..(token.start + token.length - 1));
       match source {
         Some(string) => {
-          let value = Box::new(Object::String(String::from(string)));
+          let value = if let Some(existing_string) = compiler.strings.get(string) {
+            Box::new(Object::String(existing_string.to_string()))
+          } else {
+            Box::new(Object::String(String::from(string)))
+          };
           let index = chunk.add_constant(Value::String(Box::into_raw(value)));
           chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);
         }

@@ -85,11 +85,6 @@ impl Chunk {
     self.constants.len() - 1
   }
 
-  pub fn add_object(&mut self, object: Object) -> usize {
-    self.objects.push(Box::new(object));
-    self.objects.len() - 1
-  }
-
   pub fn disassemble(&self, name: &str) {
     println!("==== {} ====", name);
     for (offset, op_code) in self.code.iter().enumerate() {

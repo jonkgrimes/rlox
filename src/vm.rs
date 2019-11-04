@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::compiler::compile;
 use crate::object::Object;
 use crate::value::Value;
@@ -21,9 +23,9 @@ macro_rules! bin_op {
 }
 
 pub struct Vm {
-  chunk: Chunk,
+  pub chunk: Chunk,
+  pub strings: HashSet<String>,
   ip: usize,
-  heap: Vec<Box<Object>>,
   stack: [Value; STACK_MAX],
   stack_top: usize,
 }
@@ -38,15 +40,15 @@ impl Vm {
   pub fn new() -> Vm {
     Vm {
       chunk: Chunk::new(),
-      heap: Vec::new(),
       ip: 0,
+      strings: HashSet::new(),
       stack: [Value::Nil; STACK_MAX],
       stack_top: 0,
     }
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    if !compile(source, &mut self.chunk) {
+    if !compile(source, &mut self.chunk, &mut self.strings) {
       return VmResult::CompileError;
     }
     self.run()
@@ -58,6 +60,7 @@ impl Vm {
 
       if cfg!(feature = "debug") {
         self.print_stack();
+        println!("{:?}", self.strings);
         op_code.disassemble_instruction(&self.chunk, self.ip);
       }
 
@@ -79,11 +82,14 @@ impl Vm {
                 match *boxed_a {
                   Object::String(string_a) => match *boxed_b {
                     Object::String(string_b) => {
-                      println!("string_a = '{}'", string_a);
-                      println!("string_b = '{}'", string_b);
                       let mut new_string = String::from(&string_b);
                       new_string.push_str(&string_a);
-                      let new_object = Box::new(Object::String(new_string));
+                      let new_object = if let Some(existing_string) = self.strings.get(&new_string)
+                      {
+                        Box::new(Object::String(existing_string.to_string()))
+                      } else {
+                        Box::new(Object::String(new_string))
+                      };
                       self.push(Value::String(Box::into_raw(new_object)));
                     }
                   },
