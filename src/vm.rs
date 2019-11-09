@@ -66,7 +66,6 @@ impl Vm {
 
       match op_code {
         OpCode::Return => {
-          println!("=> {}", self.pop());
           break VmResult::Ok;
         }
         OpCode::Add => {
@@ -158,6 +157,10 @@ impl Vm {
           if let Some(constant) = constant {
             self.push(*constant);
           }
+        }
+        OpCode::Print => {
+          let value = self.pop();
+          println!("{}", value);
         }
       }
 

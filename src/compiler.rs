@@ -70,12 +70,17 @@ impl<'a> Compiler<'a> {
   fn compile(&mut self, source: &str, chunk: &mut Chunk) -> bool {
     let mut scanner = Scanner::new(source);
     self.advance(&mut scanner);
-    self.expression(&mut scanner, chunk);
-    self.consume(
-      &mut scanner,
-      TokenKind::Eof,
-      "Expected the end of an expression.",
-    );
+
+    loop {
+      if let Some(current) = &self.current {
+        if current.kind == TokenKind::Eof {
+          self.advance(&mut scanner);
+          break;
+        }
+      }
+      self.declaration(&mut scanner, chunk);
+    }
+
     // emit return
     chunk.write_chunk(OpCode::Return, self.current.as_ref().unwrap().line as u32);
     if self.had_error {
@@ -179,6 +184,25 @@ impl<'a> Compiler<'a> {
       TokenKind::String => ParseRule::new(Some(Compiler::string), None, Precedence::None),
       _ => ParseRule::new(None, None, Precedence::None),
     }
+  }
+
+  fn declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.statement(scanner, chunk)
+  }
+
+  fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    if let Some(current) = &self.current {
+      if current.kind == TokenKind::Print {
+        self.advance(scanner);
+        self.print_statement(scanner, chunk);
+      }
+    }
+  }
+
+  fn print_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.expression(scanner, chunk);
+    self.consume(scanner, TokenKind::Semicolon, "Expect ';' after value.");
+    chunk.write_chunk(OpCode::Print, self.current.as_ref().unwrap().line as u32);
   }
 
   fn expression(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
