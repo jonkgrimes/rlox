@@ -72,11 +72,8 @@ impl<'a> Compiler<'a> {
     self.advance(&mut scanner);
 
     loop {
-      if let Some(current) = &self.current {
-        if current.kind == TokenKind::Eof {
-          self.advance(&mut scanner);
-          break;
-        }
+      if self.matches(TokenKind::Eof, &mut scanner) {
+        break;
       }
       self.declaration(&mut scanner, chunk);
     }
@@ -186,18 +183,29 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
-    self.statement(scanner, chunk)
+  fn matches(&mut self, kind: TokenKind, scanner: &mut Scanner) -> bool {
+    if !self.current.as_ref().map_or(false, |c| c.kind == kind) {
+      return false;
+    }
+    self.advance(scanner);
+    true
   }
 
+  fn declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    if self.matches(TokenKind::Var, scanner) {
+      self.var_declaration(scanner, chunk);
+    } else {
+      self.statement(scanner, chunk)
+    }
+  }
+
+  fn var_declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {}
+
   fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
-    if let Some(current) = &self.current {
-      if current.kind == TokenKind::Print {
-        self.advance(scanner);
-        self.print_statement(scanner, chunk);
-      } else {
-        self.expression_statement(scanner, chunk);
-      }
+    if self.matches(TokenKind::Print, scanner) {
+      self.print_statement(scanner, chunk);
+    } else {
+      self.expression_statement(scanner, chunk);
     }
   }
 
