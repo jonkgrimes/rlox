@@ -195,6 +195,8 @@ impl<'a> Compiler<'a> {
       if current.kind == TokenKind::Print {
         self.advance(scanner);
         self.print_statement(scanner, chunk);
+      } else {
+        self.expression_statement(scanner, chunk);
       }
     }
   }
@@ -203,6 +205,16 @@ impl<'a> Compiler<'a> {
     self.expression(scanner, chunk);
     self.consume(scanner, TokenKind::Semicolon, "Expect ';' after value.");
     chunk.write_chunk(OpCode::Print, self.current.as_ref().unwrap().line as u32);
+  }
+
+  fn expression_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.expression(scanner, chunk);
+    self.consume(
+      scanner,
+      TokenKind::Semicolon,
+      "Expect ';' after expression.",
+    );
+    chunk.write_chunk(OpCode::Pop, self.current.as_ref().unwrap().line as u32);
   }
 
   fn expression(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {

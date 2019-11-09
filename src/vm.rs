@@ -162,6 +162,9 @@ impl Vm {
           let value = self.pop();
           println!("{}", value);
         }
+        OpCode::Pop => {
+          self.pop();
+        }
       }
 
       self.ip += 1

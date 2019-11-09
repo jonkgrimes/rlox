@@ -18,6 +18,7 @@ pub enum OpCode {
   Greater,
   Less,
   Print,
+  Pop,
 }
 
 impl OpCode {
@@ -51,6 +52,7 @@ impl OpCode {
       OpCode::Greater => println!("{} Greater", prefix),
       OpCode::Less => println!("{} Less", prefix),
       OpCode::Print => println!("{} Print", prefix),
+      OpCode::Pop => println!("{} Pop", prefix),
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);
