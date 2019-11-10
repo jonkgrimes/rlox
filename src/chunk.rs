@@ -9,7 +9,6 @@ pub enum OpCode {
   Subtract,
   Multiply,
   Divide,
-  Constant(usize),
   Not,
   Nil,
   True,
@@ -19,6 +18,8 @@ pub enum OpCode {
   Less,
   Print,
   Pop,
+  Constant(usize),
+  DefineGlobal(usize),
 }
 
 impl OpCode {
@@ -56,6 +57,11 @@ impl OpCode {
       OpCode::Constant(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} Constant\t{} '{}'", prefix, index, constant);
+        }
+      }
+      OpCode::DefineGlobal(index) => {
+        if let Some(constant) = chunk.constants.get(*index) {
+          println!("{} DefineGlobal\t{} '{}'", prefix, index, constant);
         }
       }
     }

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::compiler::compile;
 use crate::object::Object;
@@ -25,6 +25,7 @@ macro_rules! bin_op {
 pub struct Vm {
   pub chunk: Chunk,
   pub strings: HashSet<String>,
+  pub globals: HashMap<Object, Value>,
   ip: usize,
   stack: [Value; STACK_MAX],
   stack_top: usize,
@@ -42,6 +43,7 @@ impl Vm {
       chunk: Chunk::new(),
       ip: 0,
       strings: HashSet::new(),
+      globals: HashMap::new(),
       stack: [Value::Nil; STACK_MAX],
       stack_top: 0,
     }
@@ -60,7 +62,7 @@ impl Vm {
 
       if cfg!(feature = "debug") {
         self.print_stack();
-        println!("{:?}", self.strings);
+        self.print_globals();
         op_code.disassemble_instruction(&self.chunk, self.ip);
       }
 
@@ -165,6 +167,20 @@ impl Vm {
         OpCode::Pop => {
           self.pop();
         }
+        OpCode::DefineGlobal(index) => {
+          let constant = self.chunk.constants.get(*index);
+          if let Some(constant) = constant {
+            match *constant {
+              Value::String(ptr) => {
+                let name = unsafe { Box::from_raw(ptr) };
+                let value = self.peek(0);
+                self.globals.insert(*name, value);
+                self.pop();
+              }
+              _ => break VmResult::RuntimeError(String::from("Cannot resolve variable name.")),
+            }
+          }
+        }
       }
 
       self.ip += 1
@@ -192,8 +208,16 @@ impl Vm {
   }
 
   fn print_stack(&self) {
+    println!("======= STACK =======");
     for i in 0..self.stack_top {
       println!("[{}]", self.stack[i]);
+    }
+  }
+
+  fn print_globals(&self) {
+    println!("======= GLOBALS =======");
+    for (name, value) in &self.globals {
+      println!("[{} = {}]", name, value);
     }
   }
 }

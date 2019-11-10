@@ -199,7 +199,42 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn var_declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {}
+  fn var_declaration(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    let global = self.parse_variable("Expect variable name", scanner, chunk);
+
+    if self.matches(TokenKind::Equal, scanner) {
+      self.expression(scanner, chunk);
+    } else {
+      chunk.write_chunk(OpCode::Nil, self.current.as_ref().unwrap().line as u32);
+    }
+
+    self.consume(
+      scanner,
+      TokenKind::Semicolon,
+      "Expect ';' after variable declaration.",
+    );
+
+    self.define_variable(global, chunk);
+  }
+
+  fn parse_variable(&mut self, error: &str, scanner: &mut Scanner, chunk: &mut Chunk) -> usize {
+    self.consume(scanner, TokenKind::Identifier, error);
+    self.identifier_constant(self.previous.as_ref().unwrap(), chunk)
+  }
+
+  fn define_variable(&self, index: usize, chunk: &mut Chunk) {
+    chunk.write_chunk(
+      OpCode::DefineGlobal(index),
+      self.current.as_ref().unwrap().line as u32,
+    );
+  }
+
+  fn identifier_constant(&self, token: &Token, chunk: &mut Chunk) -> usize {
+    let source = self.source.get((token.start)..(token.start + token.length));
+    let identifier = Box::new(Object::String(String::from(source.unwrap())));
+    let index = chunk.add_constant(Value::String(Box::into_raw(identifier)));
+    index
+  }
 
   fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
     if self.matches(TokenKind::Print, scanner) {
