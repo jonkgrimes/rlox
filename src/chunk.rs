@@ -21,6 +21,7 @@ pub enum OpCode {
   Constant(usize),
   DefineGlobal(usize),
   GetGlobal(usize),
+  SetGlobal(usize),
 }
 
 impl OpCode {

@@ -197,6 +197,22 @@ impl Vm {
             }
           }
         }
+        OpCode::SetGlobal(index) => {
+          let constant = self.chunk.constants.get(*index);
+          if let Some(constant) = constant {
+            match *constant {
+              Value::String(ptr) => {
+                let name = unsafe { Box::from_raw(ptr) };
+                let value = self.globals.get(&*name);
+                match value {
+                  Some(value) => self.push(*value),
+                  _ => break VmResult::RuntimeError("Undefined variable".to_string()),
+                }
+              }
+              _ => break VmResult::RuntimeError("Cannot resolve variable name.".to_string()),
+            }
+          }
+        }
       }
 
       self.ip += 1

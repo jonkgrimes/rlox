@@ -376,6 +376,11 @@ impl<'a> Compiler<'a> {
   fn named_variable(&self, token: &Token, scanner: &mut Scanner, chunk: &mut Chunk) {
     let index = self.identifier_constant(token, chunk);
     let line = scanner.line() as u32;
-    chunk.write_chunk(OpCode::GetGlobal(index), line);
+    if self.matches(TokenKind::Equal, scanner) {
+      self.expression(scanner, chunk);
+      chunk.write_chunk(OpCode::SetGlobal(index), line);
+    } else {
+      chunk.write_chunk(OpCode::GetGlobal(index), line);
+    }
   }
 }
