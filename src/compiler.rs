@@ -116,8 +116,8 @@ impl<'a> Compiler<'a> {
     print!("[line {}] Error", token.line);
 
     match token.kind {
-      TokenKind::Eof => print!(" at end of line."),
-      TokenKind::Error(_) => (),
+      TokenKind::Eof => println!(" at end of line."),
+      TokenKind::Error(error) => println!(": {}", error),
       _ => {
         let range = token.start..(token.start + token.length);
         println!(" at '{}'", self.source.get(range).unwrap());
@@ -178,6 +178,7 @@ impl<'a> Compiler<'a> {
       }
       TokenKind::Less => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
       TokenKind::LessEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
+      TokenKind::Identifier => ParseRule::new(Some(Compiler::variable), None, Precedence::None),
       TokenKind::String => ParseRule::new(Some(Compiler::string), None, Precedence::None),
       _ => ParseRule::new(None, None, Precedence::None),
     }
@@ -366,5 +367,15 @@ impl<'a> Compiler<'a> {
       TokenKind::False => chunk.write_chunk(OpCode::False, scanner.line() as u32),
       _ => (),
     }
+  }
+
+  fn variable(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+    compiler.named_variable(compiler.previous.as_ref().unwrap(), scanner, chunk);
+  }
+
+  fn named_variable(&self, token: &Token, scanner: &mut Scanner, chunk: &mut Chunk) {
+    let index = self.identifier_constant(token, chunk);
+    let line = scanner.line() as u32;
+    chunk.write_chunk(OpCode::GetGlobal(index), line);
   }
 }

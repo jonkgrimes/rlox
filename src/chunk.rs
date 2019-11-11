@@ -20,6 +20,7 @@ pub enum OpCode {
   Pop,
   Constant(usize),
   DefineGlobal(usize),
+  GetGlobal(usize),
 }
 
 impl OpCode {
@@ -62,6 +63,11 @@ impl OpCode {
       OpCode::DefineGlobal(index) => {
         if let Some(constant) = chunk.constants.get(*index) {
           println!("{} DefineGlobal\t{} '{}'", prefix, index, constant);
+        }
+      }
+      OpCode::GetGlobal(index) => {
+        if let Some(constant) = chunk.constants.get(*index) {
+          println!("{} GetGlobal\t{} '{}'", prefix, index, constant);
         }
       }
     }

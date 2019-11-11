@@ -230,7 +230,7 @@ impl<'a> Scanner<'a> {
           match c {
             Some("h") => self.check_keyword(2, 2, "is", TokenKind::This),
             Some("r") => self.check_keyword(2, 2, "ue", TokenKind::True),
-            _ => TokenKind::Error("Unexpected character".to_string()),
+            _ => TokenKind::Identifier,
           }
         } else {
           TokenKind::Error("Unexpected character".to_string())
