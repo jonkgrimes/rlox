@@ -71,6 +71,11 @@ impl OpCode {
           println!("{} GetGlobal\t{} '{}'", prefix, index, constant);
         }
       }
+      OpCode::SetGlobal(index) => {
+        if let Some(constant) = chunk.constants.get(*index) {
+          println!("{} SetGlobal\t{} '{}'", prefix, index, constant);
+        }
+      }
     }
   }
 }

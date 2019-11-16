@@ -203,10 +203,15 @@ impl Vm {
             match *constant {
               Value::String(ptr) => {
                 let name = unsafe { Box::from_raw(ptr) };
-                let value = self.globals.get(&*name);
-                match value {
-                  Some(value) => self.push(*value),
-                  _ => break VmResult::RuntimeError("Undefined variable".to_string()),
+                let value = self.peek(0);
+                match self.globals.insert(*name, value) {
+                  Some(_) => (),
+                  None => {
+                    let name = unsafe { Box::from_raw(ptr) };
+                    let error = format!("Undefined variable '{}'", name);
+                    self.globals.remove(&*name);
+                    break VmResult::RuntimeError(error);
+                  }
                 }
               }
               _ => break VmResult::RuntimeError("Cannot resolve variable name.".to_string()),

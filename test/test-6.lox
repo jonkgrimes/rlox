@@ -1,0 +1,5 @@
+var one = 1;
+var two = 2;
+print one;
+print two;
+print one + two;

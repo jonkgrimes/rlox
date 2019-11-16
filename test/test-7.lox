@@ -1,0 +1,5 @@
+var one = "Hello";
+var two = "World";
+print one;
+print two;
+print one + " " + two;

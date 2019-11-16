@@ -25,7 +25,8 @@ enum Precedence {
   Primary,
 }
 
-type ParseFn = fn(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk);
+type ParseFn =
+  fn(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, can_assign: bool);
 
 struct ParseRule {
   pub prefix: Option<ParseFn>,
@@ -132,9 +133,11 @@ impl<'a> Compiler<'a> {
 
   fn parse_precedence(&mut self, precedence: Precedence, scanner: &mut Scanner, chunk: &mut Chunk) {
     self.advance(scanner);
+    let can_assign = precedence <= Precedence::Assignment;
+
     let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
     if let Some(prefix_fn) = parse_rule.prefix {
-      prefix_fn(self, scanner, chunk);
+      prefix_fn(self, scanner, chunk, can_assign);
     } else {
       self.error_at_current("Expect expression.");
       return ();
@@ -150,7 +153,12 @@ impl<'a> Compiler<'a> {
         .get_rule(&self.previous.as_ref().unwrap().kind.clone())
         .infix
         .unwrap();
-      infix_fn(self, scanner, chunk);
+      infix_fn(self, scanner, chunk, can_assign);
+    }
+
+    if can_assign && self.matches(TokenKind::Equal, scanner) {
+      self.error_at_current("Invalid assignment target.");
+      self.expression(scanner, chunk);
     }
   }
 
@@ -265,7 +273,7 @@ impl<'a> Compiler<'a> {
     self.parse_precedence(Precedence::Assignment, scanner, chunk);
   }
 
-  fn number(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn number(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assgin: bool) {
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -283,7 +291,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn string(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn string(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -303,7 +311,12 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn grouping(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn grouping(
+    compiler: &mut Compiler,
+    scanner: &mut Scanner,
+    chunk: &mut Chunk,
+    _can_assgin: bool,
+  ) {
     compiler.expression(scanner, chunk);
     compiler.consume(
       scanner,
@@ -312,7 +325,7 @@ impl<'a> Compiler<'a> {
     );
   }
 
-  fn unary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn unary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
 
     compiler.parse_precedence(Precedence::Unary, scanner, chunk);
@@ -328,7 +341,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn binary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn binary(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     let rule = compiler.get_rule(&operator);
     compiler.parse_precedence(rule.precedence, scanner, chunk);
@@ -359,7 +372,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn literal(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn literal(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     match operator {
       TokenKind::Nil => chunk.write_chunk(OpCode::Nil, scanner.line() as u32),
@@ -369,14 +382,15 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn variable(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk) {
-    compiler.named_variable(compiler.previous.as_ref().unwrap(), scanner, chunk);
+  fn variable(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, can_assign: bool) {
+    compiler.named_variable(scanner, chunk, can_assign);
   }
 
-  fn named_variable(&self, token: &Token, scanner: &mut Scanner, chunk: &mut Chunk) {
+  fn named_variable(&mut self, scanner: &mut Scanner, chunk: &mut Chunk, can_assign: bool) {
+    let token = self.previous.as_ref().unwrap();
     let index = self.identifier_constant(token, chunk);
     let line = scanner.line() as u32;
-    if self.matches(TokenKind::Equal, scanner) {
+    if can_assign && self.matches(TokenKind::Equal, scanner) {
       self.expression(scanner, chunk);
       chunk.write_chunk(OpCode::SetGlobal(index), line);
     } else {
