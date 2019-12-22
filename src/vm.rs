@@ -218,6 +218,16 @@ impl Vm {
             }
           }
         }
+        OpCode::SetLocal(index) => {
+          let i = (*index).clone();
+          let value = self.peek(0);
+          self.stack[i] = value;
+        }
+        OpCode::GetLocal(index) => {
+          let i = (*index).clone();
+          let value = self.stack[i];
+          self.push(value);
+        }
       }
 
       self.ip += 1

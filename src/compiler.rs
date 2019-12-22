@@ -50,6 +50,14 @@ struct Compiler<'a> {
   current: Option<Token>,
   previous: Option<Token>,
   had_error: bool,
+  locals: Vec<Local>,
+  local_count: u32,
+  scope_depth: u32,
+}
+
+struct Local {
+  name: Token,
+  depth: u32,
 }
 
 pub fn compile(source: &str, chunk: &mut Chunk, strings: &mut HashSet<String>) -> bool {
@@ -65,6 +73,9 @@ impl<'a> Compiler<'a> {
       current: None,
       previous: None,
       had_error: false,
+      locals: Vec::new(),
+      local_count: 0,
+      scope_depth: 0,
     }
   }
 
@@ -228,10 +239,47 @@ impl<'a> Compiler<'a> {
 
   fn parse_variable(&mut self, error: &str, scanner: &mut Scanner, chunk: &mut Chunk) -> usize {
     self.consume(scanner, TokenKind::Identifier, error);
+
+    self.declare_variable();
+    if self.scope_depth > 0 {
+      return 0;
+    }
+
     self.identifier_constant(self.previous.as_ref().unwrap(), chunk)
   }
 
+  fn declare_variable(&mut self) {
+    if self.scope_depth == 0 {
+      return;
+    }
+
+    let name = self.previous.as_ref().unwrap().clone();
+
+    for local in &self.locals {
+      if local.depth < self.scope_depth {
+        break;
+      }
+
+      if local.name == name {
+        self.error_at_current("Variable with this name already declared in this scope.")
+      }
+    }
+
+    self.add_local(name);
+  }
+
+  fn add_local(&mut self, name: Token) {
+    self.locals.push(Local {
+      name,
+      depth: self.scope_depth,
+    })
+  }
+
   fn define_variable(&self, index: usize, chunk: &mut Chunk) {
+    if self.scope_depth > 0 {
+      return;
+    }
+
     chunk.write_chunk(
       OpCode::DefineGlobal(index),
       self.current.as_ref().unwrap().line as u32,
@@ -248,6 +296,10 @@ impl<'a> Compiler<'a> {
   fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
     if self.matches(TokenKind::Print, scanner) {
       self.print_statement(scanner, chunk);
+    } else if self.matches(TokenKind::LeftBrace, scanner) {
+      self.begin_scope(scanner, chunk);
+      self.block(scanner, chunk);
+      self.end_scope(scanner, chunk);
     } else {
       self.expression_statement(scanner, chunk);
     }
@@ -267,6 +319,33 @@ impl<'a> Compiler<'a> {
       "Expect ';' after expression.",
     );
     chunk.write_chunk(OpCode::Pop, self.current.as_ref().unwrap().line as u32);
+  }
+
+  fn begin_scope(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.scope_depth += 1;
+  }
+
+  fn block(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    loop {
+      if self.matches(TokenKind::RightBrace, scanner) || self.matches(TokenKind::Eof, scanner) {
+        break;
+      }
+
+      self.declaration(scanner, chunk)
+    }
+  }
+
+  fn end_scope(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.scope_depth -= 1;
+
+    loop {
+      if !(self.local_count > 0) || self.locals.last().unwrap().depth <= self.scope_depth {
+        break;
+      }
+
+      chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self.local_count -= 1;
+    }
   }
 
   fn expression(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
@@ -388,13 +467,33 @@ impl<'a> Compiler<'a> {
 
   fn named_variable(&mut self, scanner: &mut Scanner, chunk: &mut Chunk, can_assign: bool) {
     let token = self.previous.as_ref().unwrap();
-    let index = self.identifier_constant(token, chunk);
+    let get_op;
+    let set_op;
+
+    if let Some(arg) = self.resolve_local(token) {
+      get_op = OpCode::GetLocal(arg as usize);
+      set_op = OpCode::SetLocal(arg as usize);
+    } else {
+      let index = self.identifier_constant(token, chunk);
+      get_op = OpCode::GetGlobal(index);
+      set_op = OpCode::SetGlobal(index);
+    }
     let line = scanner.line() as u32;
+
     if can_assign && self.matches(TokenKind::Equal, scanner) {
       self.expression(scanner, chunk);
-      chunk.write_chunk(OpCode::SetGlobal(index), line);
+      chunk.write_chunk(set_op, line);
     } else {
-      chunk.write_chunk(OpCode::GetGlobal(index), line);
+      chunk.write_chunk(get_op, line);
     }
+  }
+
+  fn resolve_local(&self, name: &Token) -> Option<usize> {
+    for (i, local) in self.locals.iter().enumerate().rev() {
+      if &local.name == name {
+        return Some(i);
+      }
+    }
+    None
   }
 }

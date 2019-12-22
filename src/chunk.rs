@@ -22,6 +22,8 @@ pub enum OpCode {
   DefineGlobal(usize),
   GetGlobal(usize),
   SetGlobal(usize),
+  GetLocal(usize),
+  SetLocal(usize),
 }
 
 impl OpCode {
@@ -76,6 +78,8 @@ impl OpCode {
           println!("{} SetGlobal\t{} '{}'", prefix, index, constant);
         }
       }
+      OpCode::SetLocal(index) => {}
+      OpCode::GetLocal(index) => {}
     }
   }
 }

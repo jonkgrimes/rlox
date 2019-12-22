@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
   pub kind: TokenKind,
   pub start: usize,
@@ -76,4 +76,25 @@ pub enum TokenKind {
 
   Error(String),
   Eof,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_token_equality() {
+    let a = Token::new(TokenKind::Var, 1, 1, 1);
+    let b = Token::new(TokenKind::Var, 1, 1, 1);
+
+    assert!(a == b);
+  }
+
+  #[test]
+  fn test_token_inequality() {
+    let a = Token::new(TokenKind::Var, 1, 1, 1);
+    let b = Token::new(TokenKind::Var, 2, 2, 1);
+
+    assert!(a != b);
+  }
 }
