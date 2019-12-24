@@ -228,6 +228,12 @@ impl Vm {
           let value = self.stack[i];
           self.push(value);
         }
+        OpCode::JumpIfFalse(offset) => {
+          let value = self.peek(0);
+          if value.is_falsey() {
+            self.ip += offset;
+          }
+        }
       }
 
       self.ip += 1
@@ -249,7 +255,7 @@ impl Vm {
     value
   }
 
-  fn peek(&mut self, distance: usize) -> Value {
+  fn peek(&self, distance: usize) -> Value {
     let peek_index = self.stack_top - distance - 1;
     self.stack[peek_index]
   }

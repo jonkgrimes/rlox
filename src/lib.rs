@@ -10,14 +10,16 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
 mod chunk;
-mod value;
-mod vm;
 mod compiler;
+mod object;
+mod op_code;
 mod scanner;
 mod token;
-mod object;
+mod value;
+mod vm;
 
-use chunk::{Chunk, OpCode};
+use chunk::Chunk;
+use op_code::OpCode;
 use vm::{Vm, VmResult};
 
 pub fn repl() -> io::Result<()> {
@@ -52,9 +54,7 @@ pub fn run_file(path: &str) -> io::Result<()> {
   buf_reader.read_to_string(&mut contents)?;
   match interpret(&contents) {
     VmResult::CompileError => std::process::exit(65),
-    VmResult::RuntimeError(_) => {
-      std::process::exit(70)
-    },
+    VmResult::RuntimeError(_) => std::process::exit(70),
     VmResult::Ok => std::process::exit(0),
   }
 }

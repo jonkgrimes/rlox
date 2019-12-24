@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use crate::chunk::Chunk;
-use crate::chunk::OpCode;
 use crate::object::Object;
+use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
 use crate::value::Value;
@@ -296,6 +296,8 @@ impl<'a> Compiler<'a> {
   fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
     if self.matches(TokenKind::Print, scanner) {
       self.print_statement(scanner, chunk);
+    } else if self.matches(TokenKind::If, scanner) {
+      self.if_statement(scanner, chunk);
     } else if self.matches(TokenKind::LeftBrace, scanner) {
       self.begin_scope(scanner, chunk);
       self.block(scanner, chunk);
@@ -309,6 +311,31 @@ impl<'a> Compiler<'a> {
     self.expression(scanner, chunk);
     self.consume(scanner, TokenKind::Semicolon, "Expect ';' after value.");
     chunk.write_chunk(OpCode::Print, self.current.as_ref().unwrap().line as u32);
+  }
+
+  fn if_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'if'");
+    self.expression(scanner, chunk);
+    self.consume(
+      scanner,
+      TokenKind::RightParen,
+      "Expect ')' after condition.",
+    );
+
+    let then_jmp = self.emit_jump(chunk);
+    self.statement(scanner, chunk);
+    self.patch_jump(then_jmp, chunk);
+  }
+
+  fn emit_jump(&mut self, chunk: &mut Chunk) -> usize {
+    let line = self.current.as_ref().unwrap().line as u32;
+    chunk.write_chunk(OpCode::JumpIfFalse(0), line);
+    chunk.code.len() - 1
+  }
+
+  fn patch_jump(&mut self, then_jmp: usize, chunk: &mut Chunk) {
+    let offset = chunk.code.len() - then_jmp - 1;
+    chunk.code[then_jmp] = OpCode::JumpIfFalse(offset);
   }
 
   fn expression_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
