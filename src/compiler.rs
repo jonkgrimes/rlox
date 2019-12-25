@@ -55,6 +55,7 @@ struct Compiler<'a> {
   scope_depth: u32,
 }
 
+#[derive(Debug)]
 struct Local {
   name: Token,
   depth: u32,
@@ -516,11 +517,25 @@ impl<'a> Compiler<'a> {
   }
 
   fn resolve_local(&self, name: &Token) -> Option<usize> {
+    println!("resolve_local({:?})", name);
     for (i, local) in self.locals.iter().enumerate().rev() {
-      if &local.name == name {
+      println!("local = {:?}", local);
+      if self.identifiers_equal(&local.name, name) {
         return Some(i);
       }
     }
     None
+  }
+
+  fn identifiers_equal(&self, lhs: &Token, rhs: &Token) -> bool {
+    if lhs.length != rhs.length {
+      return false;
+    }
+    let lhs_range = lhs.start..(lhs.start + lhs.length);
+    let rhs_range = rhs.start..(rhs.start + rhs.length);
+    if self.source[lhs_range] == self.source[rhs_range] {
+      return true;
+    }
+    false
   }
 }
