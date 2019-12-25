@@ -1,0 +1,7 @@
+var a = "Global variable";
+var b = true;
+if (b) {
+  var c = "Local variable";
+  print c;
+}
+print a;
