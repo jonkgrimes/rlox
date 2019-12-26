@@ -24,6 +24,7 @@ pub enum OpCode {
   GetLocal(usize),
   SetLocal(usize),
   JumpIfFalse(usize),
+  Jump(usize),
 }
 
 impl OpCode {
@@ -81,6 +82,7 @@ impl OpCode {
       OpCode::SetLocal(index) => {}
       OpCode::GetLocal(index) => {}
       OpCode::JumpIfFalse(jmp) => println!("{} JumpIfFalse offset {}", prefix, jmp),
+      OpCode::Jump(jmp) => println!("{} Jump offset {}", prefix, jmp),
     }
   }
 }

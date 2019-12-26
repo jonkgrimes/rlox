@@ -1,0 +1,9 @@
+var a = true;
+
+if (a) { 
+  print "Taking the then branch";
+} else { 
+  print "Taking the else branch";
+}
+ 
+print "Fell all the way through";

@@ -323,20 +323,38 @@ impl<'a> Compiler<'a> {
       "Expect ')' after condition.",
     );
 
-    let then_jmp = self.emit_jump(chunk);
+    let then_jmp = self.emit_jump(OpCode::JumpIfFalse(0), chunk);
+    let line = self.current.as_ref().unwrap().line as u32;
+    chunk.write_chunk(OpCode::Pop, line);
     self.statement(scanner, chunk);
+
+    let else_jmp = self.emit_jump(OpCode::Jump(0), chunk);
+
     self.patch_jump(then_jmp, chunk);
+    let line = self.current.as_ref().unwrap().line as u32;
+    chunk.write_chunk(OpCode::Pop, line);
+
+    if self.matches(TokenKind::Else, scanner) {
+      self.statement(scanner, chunk);
+    }
+    self.patch_jump(else_jmp, chunk);
   }
 
-  fn emit_jump(&mut self, chunk: &mut Chunk) -> usize {
+  fn emit_jump(&mut self, op_code: OpCode, chunk: &mut Chunk) -> usize {
     let line = self.current.as_ref().unwrap().line as u32;
-    chunk.write_chunk(OpCode::JumpIfFalse(0), line);
+    chunk.write_chunk(op_code, line);
     chunk.code.len() - 1
   }
 
-  fn patch_jump(&mut self, then_jmp: usize, chunk: &mut Chunk) {
-    let offset = chunk.code.len() - then_jmp - 1;
-    chunk.code[then_jmp] = OpCode::JumpIfFalse(offset);
+  fn patch_jump(&mut self, jmp: usize, chunk: &mut Chunk) {
+    let offset = chunk.code.len() - jmp - 1;
+    match chunk.code.get(jmp) {
+      Some(OpCode::Jump(_)) => chunk.code[jmp] = OpCode::Jump(offset),
+      Some(OpCode::JumpIfFalse(_)) => {
+        chunk.code[jmp] = OpCode::JumpIfFalse(offset);
+      }
+      _ => {}
+    }
   }
 
   fn expression_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
@@ -517,9 +535,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn resolve_local(&self, name: &Token) -> Option<usize> {
-    println!("resolve_local({:?})", name);
     for (i, local) in self.locals.iter().enumerate().rev() {
-      println!("local = {:?}", local);
       if self.identifiers_equal(&local.name, name) {
         return Some(i);
       }

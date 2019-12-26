@@ -204,7 +204,7 @@ impl<'a> Scanner<'a> {
     match c {
       Some("a") => self.check_keyword(2, 2, "nd", TokenKind::And),
       Some("c") => self.check_keyword(2, 4, "class", TokenKind::Class),
-      Some("e") => self.check_keyword(2, 3, "lse", TokenKind::Else),
+      Some("e") => self.check_keyword(3, 3, "lse", TokenKind::Else),
       Some("f") => {
         if self.current - self.start > 1 {
           let c = self.source.get((self.start + 1)..(self.start + 2));
@@ -251,7 +251,8 @@ impl<'a> Scanner<'a> {
   ) -> TokenKind {
     let start = self.current - start;
     let range = start..(start + length);
-    if self.source.get(range) == Some(rest) {
+    let source = self.source.get(range);
+    if source == Some(rest) {
       return kind;
     }
     TokenKind::Identifier

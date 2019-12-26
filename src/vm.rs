@@ -234,6 +234,9 @@ impl Vm {
             self.ip += offset;
           }
         }
+        OpCode::Jump(offset) => {
+          self.ip += offset;
+        }
       }
 
       self.ip += 1
