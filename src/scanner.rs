@@ -76,6 +76,13 @@ impl<'a> Scanner<'a> {
           self.make_token(TokenKind::Greater)
         }
       }
+      Some("&") => {
+        if self.matches("&") {
+          self.make_token(TokenKind::And)
+        } else {
+          self.make_token(TokenKind::And)
+        }
+      }
       Some("\"") => self.string(),
       _ => Token::error("Unexpected token.", self.start, self.current, self.line),
     }

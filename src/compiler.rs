@@ -190,6 +190,7 @@ impl<'a> Compiler<'a> {
       TokenKind::Slash => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Star => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Number => ParseRule::new(Some(Compiler::number), None, Precedence::None),
+      TokenKind::And => ParseRule::new(None, Some(Compiler::and), Precedence::And),
       TokenKind::BangEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Equality),
       TokenKind::EqualEqual => ParseRule::new(None, Some(Compiler::binary), Precedence::Equality),
       TokenKind::Greater => ParseRule::new(None, Some(Compiler::binary), Precedence::Comparison),
@@ -495,6 +496,16 @@ impl<'a> Compiler<'a> {
       }
       _ => (),
     }
+  }
+
+  fn and(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
+    let end_jump = compiler.emit_jump(OpCode::JumpIfFalse(0), chunk);
+
+    chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+
+    compiler.parse_precedence(Precedence::And, scanner, chunk);
+
+    compiler.patch_jump(end_jump, chunk);
   }
 
   fn literal(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
