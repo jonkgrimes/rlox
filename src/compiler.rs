@@ -186,6 +186,7 @@ impl<'a> Compiler<'a> {
       TokenKind::False => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
       TokenKind::True => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
       TokenKind::Nil => ParseRule::new(Some(Compiler::literal), None, Precedence::None),
+      TokenKind::Or => ParseRule::new(None, Some(Compiler::or), Precedence::Or),
       TokenKind::Plus => ParseRule::new(None, Some(Compiler::binary), Precedence::Term),
       TokenKind::Slash => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
       TokenKind::Star => ParseRule::new(None, Some(Compiler::binary), Precedence::Factor),
@@ -505,6 +506,17 @@ impl<'a> Compiler<'a> {
 
     compiler.parse_precedence(Precedence::And, scanner, chunk);
 
+    compiler.patch_jump(end_jump, chunk);
+  }
+
+  fn or(compiler: &mut Compiler, scanner: &mut Scanner, chunk: &mut Chunk, _can_assign: bool) {
+    let else_jump = compiler.emit_jump(OpCode::JumpIfFalse(0), chunk);
+    let end_jump = compiler.emit_jump(OpCode::Jump(0), chunk);
+
+    compiler.patch_jump(else_jump, chunk);
+    chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+
+    compiler.parse_precedence(Precedence::Or, scanner, chunk);
     compiler.patch_jump(end_jump, chunk);
   }
 

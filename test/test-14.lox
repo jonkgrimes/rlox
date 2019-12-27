@@ -1,3 +1,11 @@
-if (1 > 0 && 2 > 3) {
-  print "It worked!";
+if (1 > 0 and 2 > 0) {
+  print "And worked!";
 } 
+
+if (1 > 0 or 2 > 0) {
+  print "Or with first truthy arg worked";
+}
+
+if (1 < 0 or 2 > 0) {
+  print "Or with second truthy arg worked";
+}
