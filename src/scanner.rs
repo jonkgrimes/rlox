@@ -244,7 +244,7 @@ impl<'a> Scanner<'a> {
         }
       }
       Some("v") => self.check_keyword(2, 2, "ar", TokenKind::Var),
-      Some("w") => self.check_keyword(2, 4, "hile", TokenKind::While),
+      Some("w") => self.check_keyword(4, 4, "hile", TokenKind::While),
       _ => TokenKind::Identifier,
     }
   }

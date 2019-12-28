@@ -182,6 +182,7 @@ impl Vm {
           }
         }
         OpCode::GetGlobal(index) => {
+          println!("GetGlobal");
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
             match *constant {
@@ -236,6 +237,9 @@ impl Vm {
         }
         OpCode::Jump(offset) => {
           self.ip += offset;
+        }
+        OpCode::Loop(offset) => {
+          self.ip -= offset + 1;
         }
       }
 

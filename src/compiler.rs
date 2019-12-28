@@ -301,6 +301,8 @@ impl<'a> Compiler<'a> {
       self.print_statement(scanner, chunk);
     } else if self.matches(TokenKind::If, scanner) {
       self.if_statement(scanner, chunk);
+    } else if self.matches(TokenKind::While, scanner) {
+      self.while_statement(scanner, chunk);
     } else if self.matches(TokenKind::LeftBrace, scanner) {
       self.begin_scope(scanner, chunk);
       self.block(scanner, chunk);
@@ -342,6 +344,28 @@ impl<'a> Compiler<'a> {
     self.patch_jump(else_jmp, chunk);
   }
 
+  fn while_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    let loop_start = chunk.code.len();
+    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'while'.");
+    self.expression(scanner, chunk);
+
+    self.consume(
+      scanner,
+      TokenKind::RightParen,
+      "Expect ')' after condition.",
+    );
+
+    let exit_jump = self.emit_jump(OpCode::JumpIfFalse(0), chunk);
+
+    chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+    self.statement(scanner, chunk);
+
+    self.emit_loop(loop_start, chunk);
+
+    self.patch_jump(exit_jump, chunk);
+    chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+  }
+
   fn emit_jump(&mut self, op_code: OpCode, chunk: &mut Chunk) -> usize {
     let line = self.current.as_ref().unwrap().line as u32;
     chunk.write_chunk(op_code, line);
@@ -357,6 +381,12 @@ impl<'a> Compiler<'a> {
       }
       _ => {}
     }
+  }
+
+  fn emit_loop(&mut self, loop_start: usize, chunk: &mut Chunk) {
+    let line = self.current.as_ref().unwrap().line as u32;
+    let offset = chunk.code.len() - loop_start;
+    chunk.write_chunk(OpCode::Loop(offset), line);
   }
 
   fn expression_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
@@ -487,12 +517,12 @@ impl<'a> Compiler<'a> {
       TokenKind::EqualEqual => chunk.write_chunk(OpCode::Equal, line),
       TokenKind::Greater => chunk.write_chunk(OpCode::Greater, line),
       TokenKind::GreaterEqual => {
-        chunk.write_chunk(OpCode::Greater, line);
+        chunk.write_chunk(OpCode::Less, line);
         chunk.write_chunk(OpCode::Not, line);
       }
       TokenKind::Less => chunk.write_chunk(OpCode::Less, line),
       TokenKind::LessEqual => {
-        chunk.write_chunk(OpCode::Less, line);
+        chunk.write_chunk(OpCode::Greater, line);
         chunk.write_chunk(OpCode::Not, line);
       }
       _ => (),
