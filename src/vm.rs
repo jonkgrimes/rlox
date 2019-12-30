@@ -25,7 +25,7 @@ macro_rules! bin_op {
 pub struct Vm {
   pub chunk: Chunk,
   pub strings: HashSet<String>,
-  pub globals: HashMap<Object, Value>,
+  pub globals: HashMap<String, Value>,
   ip: usize,
   stack: Vec<Value>,
   stack_top: usize,
@@ -78,21 +78,14 @@ impl Vm {
               Value::String(b) => {
                 self.pop();
                 self.pop();
-                match a {
-                  Object::String(string_a) => match b {
-                    Object::String(string_b) => {
-                      let mut new_string = String::from(string_b);
-                      new_string.push_str(&string_a);
-                      let new_object = if let Some(existing_string) = self.strings.get(&new_string)
-                      {
-                        Object::String(existing_string.to_string())
-                      } else {
-                        Object::String(new_string)
-                      };
-                      self.push(Value::String(new_object));
-                    }
-                  },
-                }
+                let mut new_string = String::from(b);
+                new_string.push_str(&a);
+                let new_object = if let Some(existing_string) = self.strings.get(&new_string) {
+                  existing_string.to_string()
+                } else {
+                  new_string
+                };
+                self.push(Value::String(new_object));
               }
               _ => break VmResult::RuntimeError(String::from("Operand must be a number.")),
             },
@@ -182,8 +175,8 @@ impl Vm {
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
-              Value::String(obj) => {
-                let value = self.globals.get(&obj);
+              Value::String(s) => {
+                let value = self.globals.get(s);
                 match value {
                   Some(value) => self.push(value.clone()),
                   _ => break VmResult::RuntimeError("Cannot resolve variable name.".to_string()),
@@ -197,13 +190,13 @@ impl Vm {
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
-              Value::String(obj) => {
+              Value::String(s) => {
                 let value = self.peek(0);
-                match self.globals.insert(obj.clone(), value.clone()) {
+                match self.globals.insert(s.clone(), value.clone()) {
                   Some(_) => (),
                   None => {
-                    let error = format!("Undefined variable '{}'", obj);
-                    self.globals.remove(&obj);
+                    let error = format!("Undefined variable '{}'", s);
+                    self.globals.remove(s);
                     break VmResult::RuntimeError(error);
                   }
                 }

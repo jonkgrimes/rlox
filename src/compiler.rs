@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use crate::chunk::Chunk;
-use crate::object::Object;
 use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
@@ -291,7 +290,7 @@ impl<'a> Compiler<'a> {
 
   fn identifier_constant(&self, token: &Token, chunk: &mut Chunk) -> usize {
     let source = self.source.get((token.start)..(token.start + token.length));
-    let identifier = Object::String(String::from(source.unwrap()));
+    let identifier = String::from(source.unwrap());
     let index = chunk.add_constant(Value::String(identifier));
     index
   }
@@ -518,9 +517,9 @@ impl<'a> Compiler<'a> {
       match source {
         Some(string) => {
           let value = if let Some(existing_string) = compiler.strings.get(string) {
-            Object::String(existing_string.to_string())
+            existing_string.to_string()
           } else {
-            Object::String(String::from(string))
+            String::from(string)
           };
           let index = chunk.add_constant(Value::String(value));
           chunk.write_chunk(OpCode::Constant(index), scanner.line() as u32);

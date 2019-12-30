@@ -8,7 +8,7 @@ pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
-  String(Object),
+  String(String),
 }
 
 impl Value {
