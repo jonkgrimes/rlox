@@ -179,7 +179,6 @@ impl Vm {
           }
         }
         OpCode::GetGlobal(index) => {
-          println!("GetGlobal");
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
@@ -242,6 +241,7 @@ impl Vm {
   }
 
   fn reset_stack(&mut self) {
+    self.stack.clear();
     self.stack_top = 0;
   }
 
@@ -252,8 +252,7 @@ impl Vm {
 
   fn pop(&mut self) -> Value {
     self.stack_top -= 1;
-    let value = self.stack[self.stack_top].clone();
-    value
+    self.stack.pop().unwrap()
   }
 
   fn peek(&self, distance: usize) -> &Value {
