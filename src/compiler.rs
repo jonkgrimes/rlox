@@ -299,6 +299,8 @@ impl<'a> Compiler<'a> {
   fn statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
     if self.matches(TokenKind::Print, scanner) {
       self.print_statement(scanner, chunk);
+    } else if self.matches(TokenKind::For, scanner) {
+      self.for_statement(scanner, chunk);
     } else if self.matches(TokenKind::If, scanner) {
       self.if_statement(scanner, chunk);
     } else if self.matches(TokenKind::While, scanner) {
@@ -364,6 +366,66 @@ impl<'a> Compiler<'a> {
 
     self.patch_jump(exit_jump, chunk);
     chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+  }
+
+  fn for_statement(&mut self, scanner: &mut Scanner, chunk: &mut Chunk) {
+    self.begin_scope(scanner, chunk);
+
+    // Initializer clause
+    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'for'");
+    if self.matches(TokenKind::Semicolon, scanner) {
+      // No initializer
+    } else if self.matches(TokenKind::Var, scanner) {
+      self.var_declaration(scanner, chunk);
+    } else {
+      self.expression_statement(scanner, chunk);
+    }
+
+    let mut loop_start = chunk.code.len();
+
+    // Condition clause
+    let mut exit_jump = None;
+    if !self.matches(TokenKind::Semicolon, scanner) {
+      self.expression(scanner, chunk);
+      self.consume(
+        scanner,
+        TokenKind::Semicolon,
+        "Expect ';' after loop condition.",
+      );
+
+      exit_jump = Some(self.emit_jump(OpCode::JumpIfFalse(0), chunk));
+      chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+    }
+
+    // Increment clause
+    if !self.matches(TokenKind::RightParen, scanner) {
+      let body_jump = self.emit_jump(OpCode::Jump(0), chunk);
+
+      let inc_start = chunk.code.len();
+
+      self.expression(scanner, chunk);
+      chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self.consume(
+        scanner,
+        TokenKind::RightParen,
+        "Expect ')' after for clauses.",
+      );
+
+      self.emit_loop(loop_start, chunk);
+      loop_start = inc_start;
+      self.patch_jump(body_jump, chunk);
+    }
+
+    self.statement(scanner, chunk);
+
+    self.emit_loop(loop_start, chunk);
+
+    if let Some(exit_jump) = exit_jump {
+      self.patch_jump(exit_jump, chunk);
+      chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+    }
+
+    self.end_scope(scanner, chunk);
   }
 
   fn emit_jump(&mut self, op_code: OpCode, chunk: &mut Chunk) -> usize {
