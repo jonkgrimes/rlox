@@ -27,7 +27,7 @@ pub struct Vm {
   pub strings: HashSet<String>,
   pub globals: HashMap<Object, Value>,
   ip: usize,
-  stack: [Value; STACK_MAX],
+  stack: Vec<Value>,
   stack_top: usize,
 }
 
@@ -44,7 +44,7 @@ impl Vm {
       ip: 0,
       strings: HashSet::new(),
       globals: HashMap::new(),
-      stack: [Value::Nil; STACK_MAX],
+      stack: Vec::with_capacity(STACK_MAX),
       stack_top: 0,
     }
   }
@@ -71,27 +71,25 @@ impl Vm {
           break VmResult::Ok;
         }
         OpCode::Add => {
-          let a = self.peek(0);
-          let b = self.peek(1);
+          let a = self.peek(0).clone();
+          let b = self.peek(1).clone();
           match a {
-            Value::String(a_ptr) => match b {
-              Value::String(b_ptr) => {
+            Value::String(a) => match b {
+              Value::String(b) => {
                 self.pop();
                 self.pop();
-                let boxed_a = unsafe { Box::from_raw(a_ptr) };
-                let boxed_b = unsafe { Box::from_raw(b_ptr) };
-                match *boxed_a {
-                  Object::String(string_a) => match *boxed_b {
+                match a {
+                  Object::String(string_a) => match b {
                     Object::String(string_b) => {
-                      let mut new_string = String::from(&string_b);
+                      let mut new_string = String::from(string_b);
                       new_string.push_str(&string_a);
                       let new_object = if let Some(existing_string) = self.strings.get(&new_string)
                       {
-                        Box::new(Object::String(existing_string.to_string()))
+                        Object::String(existing_string.to_string())
                       } else {
-                        Box::new(Object::String(new_string))
+                        Object::String(new_string)
                       };
-                      self.push(Value::String(Box::into_raw(new_object)));
+                      self.push(Value::String(new_object));
                     }
                   },
                 }
@@ -157,7 +155,7 @@ impl Vm {
         OpCode::Constant(value) => {
           let constant = self.chunk.constants.get(*value);
           if let Some(constant) = constant {
-            self.push(*constant);
+            self.push(constant.clone());
           }
         }
         OpCode::Print => {
@@ -170,11 +168,10 @@ impl Vm {
         OpCode::DefineGlobal(index) => {
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
-            match *constant {
-              Value::String(ptr) => {
-                let name = unsafe { Box::from_raw(ptr) };
+            match constant {
+              Value::String(obj) => {
                 let value = self.peek(0);
-                self.globals.insert(*name, value);
+                self.globals.insert(obj.clone(), value.clone());
                 self.pop();
               }
               _ => break VmResult::RuntimeError(String::from("Cannot resolve variable name.")),
@@ -185,12 +182,11 @@ impl Vm {
           println!("GetGlobal");
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
-            match *constant {
-              Value::String(ptr) => {
-                let name = unsafe { Box::from_raw(ptr) };
-                let value = self.globals.get(&*name);
+            match constant {
+              Value::String(obj) => {
+                let value = self.globals.get(&obj);
                 match value {
-                  Some(value) => self.push(*value),
+                  Some(value) => self.push(value.clone()),
                   _ => break VmResult::RuntimeError("Cannot resolve variable name.".to_string()),
                 }
               }
@@ -201,16 +197,14 @@ impl Vm {
         OpCode::SetGlobal(index) => {
           let constant = self.chunk.constants.get(*index);
           if let Some(constant) = constant {
-            match *constant {
-              Value::String(ptr) => {
-                let name = unsafe { Box::from_raw(ptr) };
+            match constant {
+              Value::String(obj) => {
                 let value = self.peek(0);
-                match self.globals.insert(*name, value) {
+                match self.globals.insert(obj.clone(), value.clone()) {
                   Some(_) => (),
                   None => {
-                    let name = unsafe { Box::from_raw(ptr) };
-                    let error = format!("Undefined variable '{}'", name);
-                    self.globals.remove(&*name);
+                    let error = format!("Undefined variable '{}'", obj);
+                    self.globals.remove(&obj);
                     break VmResult::RuntimeError(error);
                   }
                 }
@@ -222,11 +216,11 @@ impl Vm {
         OpCode::SetLocal(index) => {
           let i = (*index).clone();
           let value = self.peek(0);
-          self.stack[i] = value;
+          self.stack[i] = value.clone();
         }
         OpCode::GetLocal(index) => {
           let i = (*index).clone();
-          let value = self.stack[i];
+          let value = self.stack[i].clone();
           self.push(value);
         }
         OpCode::JumpIfFalse(offset) => {
@@ -252,19 +246,19 @@ impl Vm {
   }
 
   fn push(&mut self, value: Value) {
-    self.stack[self.stack_top] = value;
+    self.stack.push(value);
     self.stack_top += 1;
   }
 
   fn pop(&mut self) -> Value {
     self.stack_top -= 1;
-    let value = self.stack[self.stack_top];
+    let value = self.stack[self.stack_top].clone();
     value
   }
 
-  fn peek(&self, distance: usize) -> Value {
+  fn peek(&self, distance: usize) -> &Value {
     let peek_index = self.stack_top - distance - 1;
-    self.stack[peek_index]
+    &self.stack[peek_index]
   }
 
   fn print_stack(&self) {

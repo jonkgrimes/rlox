@@ -3,12 +3,12 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::object::Object;
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
-  String(*mut Object),
+  String(Object),
 }
 
 impl Value {
@@ -55,7 +55,7 @@ impl fmt::Display for Value {
       Value::Nil => write!(f, "nil"),
       Value::Bool(value) => write!(f, "{}", value),
       Value::Number(value) => write!(f, "{}", value),
-      Value::String(value) => unsafe { write!(f, "{}", **value) },
+      Value::String(value) => write!(f, "{}", *value),
     }
   }
 }
