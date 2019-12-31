@@ -1,9 +1,8 @@
 use std::collections::HashSet;
-use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::chunk::Chunk;
+use crate::function::{Function, FunctionType};
 use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
@@ -53,7 +52,8 @@ impl ParseRule {
 
 struct Compiler<'a> {
   source: &'a str,
-  chunk: Chunk,
+  function: Function,
+  function_type: FunctionType,
   strings: &'a mut HashSet<String>,
   current: Option<Token>,
   previous: Option<Token>,
@@ -69,10 +69,10 @@ struct Local {
   depth: u32,
 }
 
-pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Chunk, CompilerError> {
+pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
   let mut compiler = Compiler::new(source, strings);
   if compiler.compile(source) {
-    Ok(compiler.chunk)
+    Ok(compiler.function)
   } else {
     Err(CompilerError(
       "There was an error during compilation".to_string(),
@@ -85,7 +85,8 @@ impl<'a> Compiler<'a> {
     Compiler {
       source,
       strings,
-      chunk: Chunk::new(),
+      function: Function::new(""),
+      function_type: FunctionType::Script,
       current: None,
       previous: None,
       had_error: false,
@@ -108,10 +109,11 @@ impl<'a> Compiler<'a> {
 
     // emit return
     self
+      .function
       .chunk
       .write_chunk(OpCode::Return, self.current.as_ref().unwrap().line as u32);
     if self.had_error {
-      self.chunk.disassemble("Total Chunk")
+      self.function.chunk.disassemble("Total Chunk")
     }
     !self.had_error
   }
@@ -246,6 +248,7 @@ impl<'a> Compiler<'a> {
       self.expression(scanner);
     } else {
       self
+        .function
         .chunk
         .write_chunk(OpCode::Nil, self.current.as_ref().unwrap().line as u32);
     }
@@ -303,7 +306,7 @@ impl<'a> Compiler<'a> {
       return;
     }
 
-    self.chunk.write_chunk(
+    self.function.chunk.write_chunk(
       OpCode::DefineGlobal(index),
       self.current.as_ref().unwrap().line as u32,
     );
@@ -312,7 +315,7 @@ impl<'a> Compiler<'a> {
   fn identifier_constant(&mut self, token: &Token) -> usize {
     let source = self.source.get((token.start)..(token.start + token.length));
     let identifier = String::from(source.unwrap());
-    let index = self.chunk.add_constant(Value::String(identifier));
+    let index = self.function.chunk.add_constant(Value::String(identifier));
     index
   }
 
@@ -338,6 +341,7 @@ impl<'a> Compiler<'a> {
     self.expression(scanner);
     self.consume(scanner, TokenKind::Semicolon, "Expect ';' after value.");
     self
+      .function
       .chunk
       .write_chunk(OpCode::Print, self.current.as_ref().unwrap().line as u32);
   }
@@ -353,14 +357,14 @@ impl<'a> Compiler<'a> {
 
     let then_jmp = self.emit_jump(OpCode::JumpIfFalse(0));
     let line = self.current.as_ref().unwrap().line as u32;
-    self.chunk.write_chunk(OpCode::Pop, line);
+    self.function.chunk.write_chunk(OpCode::Pop, line);
     self.statement(scanner);
 
     let else_jmp = self.emit_jump(OpCode::Jump(0));
 
     self.patch_jump(then_jmp);
     let line = self.current.as_ref().unwrap().line as u32;
-    self.chunk.write_chunk(OpCode::Pop, line);
+    self.function.chunk.write_chunk(OpCode::Pop, line);
 
     if self.matches(TokenKind::Else, scanner) {
       self.statement(scanner);
@@ -369,7 +373,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn while_statement(&mut self, scanner: &mut Scanner) {
-    let loop_start = self.chunk.code.len();
+    let loop_start = self.function.chunk.code.len();
     self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'while'.");
     self.expression(scanner);
 
@@ -381,13 +385,19 @@ impl<'a> Compiler<'a> {
 
     let exit_jump = self.emit_jump(OpCode::JumpIfFalse(0));
 
-    self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+    self
+      .function
+      .chunk
+      .write_chunk(OpCode::Pop, scanner.line() as u32);
     self.statement(scanner);
 
     self.emit_loop(loop_start);
 
     self.patch_jump(exit_jump);
-    self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+    self
+      .function
+      .chunk
+      .write_chunk(OpCode::Pop, scanner.line() as u32);
   }
 
   fn for_statement(&mut self, scanner: &mut Scanner) {
@@ -403,7 +413,7 @@ impl<'a> Compiler<'a> {
       self.expression_statement(scanner);
     }
 
-    let mut loop_start = self.chunk.code.len();
+    let mut loop_start = self.function.chunk.code.len();
 
     // Condition clause
     let mut exit_jump = None;
@@ -416,17 +426,23 @@ impl<'a> Compiler<'a> {
       );
 
       exit_jump = Some(self.emit_jump(OpCode::JumpIfFalse(0)));
-      self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Pop, scanner.line() as u32);
     }
 
     // Increment clause
     if !self.matches(TokenKind::RightParen, scanner) {
       let body_jump = self.emit_jump(OpCode::Jump(0));
 
-      let inc_start = self.chunk.code.len();
+      let inc_start = self.function.chunk.code.len();
 
       self.expression(scanner);
-      self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Pop, scanner.line() as u32);
       self.consume(
         scanner,
         TokenKind::RightParen,
@@ -444,7 +460,10 @@ impl<'a> Compiler<'a> {
 
     if let Some(exit_jump) = exit_jump {
       self.patch_jump(exit_jump);
-      self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Pop, scanner.line() as u32);
     }
 
     self.end_scope(scanner);
@@ -452,16 +471,16 @@ impl<'a> Compiler<'a> {
 
   fn emit_jump(&mut self, op_code: OpCode) -> usize {
     let line = self.current.as_ref().unwrap().line as u32;
-    self.chunk.write_chunk(op_code, line);
-    self.chunk.code.len() - 1
+    self.function.chunk.write_chunk(op_code, line);
+    self.function.chunk.code.len() - 1
   }
 
   fn patch_jump(&mut self, jmp: usize) {
-    let offset = self.chunk.code.len() - jmp - 1;
-    match self.chunk.code.get(jmp) {
-      Some(OpCode::Jump(_)) => self.chunk.code[jmp] = OpCode::Jump(offset),
+    let offset = self.function.chunk.code.len() - jmp - 1;
+    match self.function.chunk.code.get(jmp) {
+      Some(OpCode::Jump(_)) => self.function.chunk.code[jmp] = OpCode::Jump(offset),
       Some(OpCode::JumpIfFalse(_)) => {
-        self.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
+        self.function.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
       }
       _ => {}
     }
@@ -469,8 +488,8 @@ impl<'a> Compiler<'a> {
 
   fn emit_loop(&mut self, loop_start: usize) {
     let line = self.current.as_ref().unwrap().line as u32;
-    let offset = self.chunk.code.len() - loop_start;
-    self.chunk.write_chunk(OpCode::Loop(offset), line);
+    let offset = self.function.chunk.code.len() - loop_start;
+    self.function.chunk.write_chunk(OpCode::Loop(offset), line);
   }
 
   fn expression_statement(&mut self, scanner: &mut Scanner) {
@@ -481,6 +500,7 @@ impl<'a> Compiler<'a> {
       "Expect ';' after expression.",
     );
     self
+      .function
       .chunk
       .write_chunk(OpCode::Pop, self.current.as_ref().unwrap().line as u32);
   }
@@ -507,7 +527,10 @@ impl<'a> Compiler<'a> {
         break;
       }
 
-      self.chunk.write_chunk(OpCode::Pop, scanner.line() as u32);
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Pop, scanner.line() as u32);
       self.local_count -= 1;
     }
   }
@@ -525,8 +548,12 @@ impl<'a> Compiler<'a> {
         Some(code) => {
           let value = f32::from_str(code).ok();
           if let Some(constant) = value {
-            let index = compiler.chunk.add_constant(Value::Number(constant));
+            let index = compiler
+              .function
+              .chunk
+              .add_constant(Value::Number(constant));
             compiler
+              .function
               .chunk
               .write_chunk(OpCode::Constant(index), scanner.line() as u32);
           }
@@ -548,8 +575,9 @@ impl<'a> Compiler<'a> {
           } else {
             String::from(string)
           };
-          let index = compiler.chunk.add_constant(Value::String(value));
+          let index = compiler.function.chunk.add_constant(Value::String(value));
           compiler
+            .function
             .chunk
             .write_chunk(OpCode::Constant(index), scanner.line() as u32);
         }
@@ -575,11 +603,13 @@ impl<'a> Compiler<'a> {
     match operator {
       TokenKind::Minus => {
         compiler
+          .function
           .chunk
           .write_chunk(OpCode::Negate, scanner.line() as u32);
       }
       TokenKind::Bang => {
         compiler
+          .function
           .chunk
           .write_chunk(OpCode::Not, scanner.line() as u32);
       }
@@ -595,24 +625,24 @@ impl<'a> Compiler<'a> {
     let line = scanner.line() as u32;
 
     match operator {
-      TokenKind::Plus => compiler.chunk.write_chunk(OpCode::Add, line),
-      TokenKind::Minus => compiler.chunk.write_chunk(OpCode::Subtract, line),
-      TokenKind::Star => compiler.chunk.write_chunk(OpCode::Multiply, line),
-      TokenKind::Slash => compiler.chunk.write_chunk(OpCode::Divide, line),
+      TokenKind::Plus => compiler.function.chunk.write_chunk(OpCode::Add, line),
+      TokenKind::Minus => compiler.function.chunk.write_chunk(OpCode::Subtract, line),
+      TokenKind::Star => compiler.function.chunk.write_chunk(OpCode::Multiply, line),
+      TokenKind::Slash => compiler.function.chunk.write_chunk(OpCode::Divide, line),
       TokenKind::BangEqual => {
-        compiler.chunk.write_chunk(OpCode::Equal, line);
-        compiler.chunk.write_chunk(OpCode::Not, line);
+        compiler.function.chunk.write_chunk(OpCode::Equal, line);
+        compiler.function.chunk.write_chunk(OpCode::Not, line);
       }
-      TokenKind::EqualEqual => compiler.chunk.write_chunk(OpCode::Equal, line),
-      TokenKind::Greater => compiler.chunk.write_chunk(OpCode::Greater, line),
+      TokenKind::EqualEqual => compiler.function.chunk.write_chunk(OpCode::Equal, line),
+      TokenKind::Greater => compiler.function.chunk.write_chunk(OpCode::Greater, line),
       TokenKind::GreaterEqual => {
-        compiler.chunk.write_chunk(OpCode::Less, line);
-        compiler.chunk.write_chunk(OpCode::Not, line);
+        compiler.function.chunk.write_chunk(OpCode::Less, line);
+        compiler.function.chunk.write_chunk(OpCode::Not, line);
       }
-      TokenKind::Less => compiler.chunk.write_chunk(OpCode::Less, line),
+      TokenKind::Less => compiler.function.chunk.write_chunk(OpCode::Less, line),
       TokenKind::LessEqual => {
-        compiler.chunk.write_chunk(OpCode::Greater, line);
-        compiler.chunk.write_chunk(OpCode::Not, line);
+        compiler.function.chunk.write_chunk(OpCode::Greater, line);
+        compiler.function.chunk.write_chunk(OpCode::Not, line);
       }
       _ => (),
     }
@@ -622,6 +652,7 @@ impl<'a> Compiler<'a> {
     let end_jump = compiler.emit_jump(OpCode::JumpIfFalse(0));
 
     compiler
+      .function
       .chunk
       .write_chunk(OpCode::Pop, scanner.line() as u32);
 
@@ -636,6 +667,7 @@ impl<'a> Compiler<'a> {
 
     compiler.patch_jump(else_jump);
     compiler
+      .function
       .chunk
       .write_chunk(OpCode::Pop, scanner.line() as u32);
 
@@ -647,12 +679,15 @@ impl<'a> Compiler<'a> {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     match operator {
       TokenKind::Nil => compiler
+        .function
         .chunk
         .write_chunk(OpCode::Nil, scanner.line() as u32),
       TokenKind::True => compiler
+        .function
         .chunk
         .write_chunk(OpCode::True, scanner.line() as u32),
       TokenKind::False => compiler
+        .function
         .chunk
         .write_chunk(OpCode::False, scanner.line() as u32),
       _ => (),
@@ -680,9 +715,9 @@ impl<'a> Compiler<'a> {
 
     if can_assign && self.matches(TokenKind::Equal, scanner) {
       self.expression(scanner);
-      self.chunk.write_chunk(set_op, line);
+      self.function.chunk.write_chunk(set_op, line);
     } else {
-      self.chunk.write_chunk(get_op, line);
+      self.function.chunk.write_chunk(get_op, line);
     }
   }
 

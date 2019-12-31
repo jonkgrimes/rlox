@@ -5,7 +5,7 @@ use crate::chunk::Chunk;
 pub struct Function {
   name: String,
   arity: u32,
-  chunk: Chunk,
+  pub chunk: Chunk,
 }
 
 pub enum FunctionType {
@@ -14,11 +14,11 @@ pub enum FunctionType {
 }
 
 impl Function {
-  pub fn new(name: &str, arity: u32, chunk: Chunk) -> Function {
+  pub fn new(name: &str) -> Function {
     Function {
       name: String::from(name),
-      arity,
-      chunk,
+      arity: 0,
+      chunk: Chunk::new(),
     }
   }
 }
