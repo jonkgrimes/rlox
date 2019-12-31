@@ -47,8 +47,8 @@ impl Vm {
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    if let Ok(chunk) = compile(source, &mut self.strings) {
-      self.run(chunk)
+    if let Ok(function) = compile(source, &mut self.strings) {
+      self.run(function.chunk)
     } else {
       return VmResult::CompileError;
     }
