@@ -204,13 +204,11 @@ impl Vm {
           }
         }
         OpCode::SetLocal(index) => {
-          let i = (*index).clone();
           let value = self.peek(0);
-          self.stack[i] = value.clone();
+          self.stack[*index] = value.clone();
         }
         OpCode::GetLocal(index) => {
-          let i = (*index).clone();
-          let value = self.stack[i].clone();
+          let value = self.stack[*index].clone();
           self.push(value);
         }
         OpCode::JumpIfFalse(offset) => {

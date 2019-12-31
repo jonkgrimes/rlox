@@ -1,6 +1,5 @@
 extern crate rustyline;
 
-use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;

@@ -91,7 +91,7 @@ impl<'a> Compiler<'a> {
       previous: None,
       had_error: false,
       locals: Vec::new(),
-      local_count: 0,
+      local_count: 1,
       scope_depth: 0,
     }
   }
@@ -329,7 +329,7 @@ impl<'a> Compiler<'a> {
     } else if self.matches(TokenKind::While, scanner) {
       self.while_statement(scanner);
     } else if self.matches(TokenKind::LeftBrace, scanner) {
-      self.begin_scope(scanner);
+      self.begin_scope();
       self.block(scanner);
       self.end_scope(scanner);
     } else {
@@ -401,7 +401,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn for_statement(&mut self, scanner: &mut Scanner) {
-    self.begin_scope(scanner);
+    self.begin_scope();
 
     // Initializer clause
     self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'for'");
@@ -505,7 +505,7 @@ impl<'a> Compiler<'a> {
       .write_chunk(OpCode::Pop, self.current.as_ref().unwrap().line as u32);
   }
 
-  fn begin_scope(&mut self, scanner: &mut Scanner) {
+  fn begin_scope(&mut self) {
     self.scope_depth += 1;
   }
 
