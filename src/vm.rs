@@ -23,7 +23,6 @@ macro_rules! bin_op {
 }
 
 pub struct Vm {
-  pub chunk: Chunk,
   pub strings: HashSet<String>,
   pub globals: HashMap<String, Value>,
   ip: usize,
@@ -40,7 +39,6 @@ pub enum VmResult {
 impl Vm {
   pub fn new() -> Vm {
     Vm {
-      chunk: Chunk::new(),
       ip: 0,
       strings: HashSet::new(),
       globals: HashMap::new(),
@@ -50,20 +48,22 @@ impl Vm {
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    if !compile(source, &mut self.chunk, &mut self.strings) {
+    let chunk = Chunk::new();
+    if let Ok(chunk) = compile(source, chunk, &mut self.strings) {
+      self.run(chunk)
+    } else {
       return VmResult::CompileError;
     }
-    self.run()
   }
 
-  fn run(&mut self) -> VmResult {
+  fn run(&mut self, chunk: Chunk) -> VmResult {
     loop {
-      let op_code = &self.chunk.code[self.ip];
+      let op_code = &chunk.code[self.ip];
 
       if cfg!(feature = "debug") {
         self.print_stack();
         self.print_globals();
-        op_code.disassemble_instruction(&self.chunk, self.ip);
+        op_code.disassemble_instruction(&chunk, self.ip);
       }
 
       match op_code {
@@ -146,7 +146,7 @@ impl Vm {
           self.push(Value::Bool(b < a));
         }
         OpCode::Constant(value) => {
-          let constant = self.chunk.constants.get(*value);
+          let constant = chunk.constants.get(*value);
           if let Some(constant) = constant {
             self.push(constant.clone());
           }
@@ -159,7 +159,7 @@ impl Vm {
           self.pop();
         }
         OpCode::DefineGlobal(index) => {
-          let constant = self.chunk.constants.get(*index);
+          let constant = chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
               Value::String(obj) => {
@@ -172,7 +172,7 @@ impl Vm {
           }
         }
         OpCode::GetGlobal(index) => {
-          let constant = self.chunk.constants.get(*index);
+          let constant = chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
               Value::String(s) => {
@@ -187,7 +187,7 @@ impl Vm {
           }
         }
         OpCode::SetGlobal(index) => {
-          let constant = self.chunk.constants.get(*index);
+          let constant = chunk.constants.get(*index);
           if let Some(constant) = constant {
             match constant {
               Value::String(s) => {
