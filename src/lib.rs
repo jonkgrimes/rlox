@@ -60,7 +60,7 @@ pub fn run_file(path: &str) -> io::Result<()> {
   }
 }
 
-fn interpret(line: &str) -> VmResult {
+fn interpret(source: &str) -> VmResult {
   let mut vm = Vm::new();
-  vm.interpret(line)
+  vm.interpret(source)
 }

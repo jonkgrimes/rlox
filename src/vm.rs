@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::compiler::compile;
-use crate::object::Object;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
 
@@ -48,8 +47,7 @@ impl Vm {
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    let chunk = Chunk::new();
-    if let Ok(chunk) = compile(source, chunk, &mut self.strings) {
+    if let Ok(chunk) = compile(source, &mut self.strings) {
       self.run(chunk)
     } else {
       return VmResult::CompileError;

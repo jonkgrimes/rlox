@@ -69,12 +69,8 @@ struct Local {
   depth: u32,
 }
 
-pub fn compile(
-  source: &str,
-  chunk: Chunk,
-  strings: &mut HashSet<String>,
-) -> Result<Chunk, CompilerError> {
-  let mut compiler = Compiler::new(source, chunk, strings);
+pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Chunk, CompilerError> {
+  let mut compiler = Compiler::new(source, strings);
   if compiler.compile(source) {
     Ok(compiler.chunk)
   } else {
@@ -85,11 +81,11 @@ pub fn compile(
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &'a str, chunk: Chunk, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
     Compiler {
       source,
       strings,
-      chunk,
+      chunk: Chunk::new(),
       current: None,
       previous: None,
       had_error: false,

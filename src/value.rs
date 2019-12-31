@@ -1,8 +1,6 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::object::Object;
-
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
