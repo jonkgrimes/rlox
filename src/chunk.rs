@@ -1,4 +1,3 @@
-use crate::object::Object;
 use crate::op_code::OpCode;
 use crate::value::Value;
 
@@ -6,7 +5,6 @@ pub struct Chunk {
   pub code: Vec<OpCode>,
   pub lines: Vec<u32>,
   pub constants: Vec<Value>,
-  pub objects: Vec<Box<Object>>,
 }
 
 impl Chunk {
@@ -14,7 +12,6 @@ impl Chunk {
     Chunk {
       code: Vec::new(),
       constants: Vec::new(),
-      objects: Vec::new(),
       lines: Vec::new(),
     }
   }

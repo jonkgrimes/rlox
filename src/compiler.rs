@@ -91,7 +91,7 @@ impl<'a> Compiler<'a> {
       previous: None,
       had_error: false,
       locals: Vec::new(),
-      local_count: 1,
+      local_count: 0,
       scope_depth: 0,
     }
   }
@@ -140,6 +140,9 @@ impl<'a> Compiler<'a> {
     if let Some(current) = &self.current {
       if current.kind == kind {
         self.advance(scanner);
+      } else {
+        self.error_at_current(message);
+        self.had_error = true;
       }
     }
   }
@@ -149,10 +152,10 @@ impl<'a> Compiler<'a> {
 
     match token.kind {
       TokenKind::Eof => println!(" at end of line."),
-      TokenKind::Error(error) => println!(": {}", error),
+      TokenKind::Error(error) => println!(": {}: {}", error, message),
       _ => {
         let range = token.start..(token.start + token.length);
-        println!(" at '{}'", self.source.get(range).unwrap());
+        println!(" at '{}': {}", self.source.get(range).unwrap(), message);
       }
     }
   }
