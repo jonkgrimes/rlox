@@ -51,7 +51,7 @@ impl ParseRule {
 }
 
 struct Compiler<'a> {
-  source: &'a str,
+  scanner: Scanner<'a>,
   function: Function,
   function_type: FunctionType,
   strings: &'a mut HashSet<String>,
@@ -70,7 +70,8 @@ struct Local {
 }
 
 pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
-  let mut compiler = Compiler::new(source, strings);
+  let mut scanner = Scanner::new(source);
+  let mut compiler = Compiler::new(scanner, strings);
   if compiler.compile(source) {
     Ok(compiler.function)
   } else {
@@ -81,9 +82,9 @@ pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, 
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(scanner: Scanner<'a>, strings: &'a mut HashSet<String>) -> Compiler<'a> {
     Compiler {
-      source,
+      scanner,
       strings,
       function: Function::new(""),
       function_type: FunctionType::Script,
@@ -155,7 +156,11 @@ impl<'a> Compiler<'a> {
       TokenKind::Error(error) => println!(": {}: {}", error, message),
       _ => {
         let range = token.start..(token.start + token.length);
-        println!(" at '{}': {}", self.source.get(range).unwrap(), message);
+        println!(
+          " at '{}': {}",
+          self.scanner.source.get(range).unwrap(),
+          message
+        );
       }
     }
   }
@@ -237,11 +242,35 @@ impl<'a> Compiler<'a> {
   }
 
   fn declaration(&mut self, scanner: &mut Scanner) {
-    if self.matches(TokenKind::Var, scanner) {
+    if self.matches(TokenKind::Fun, scanner) {
+      self.fun_declaration(scanner);
+    } else if self.matches(TokenKind::Var, scanner) {
       self.var_declaration(scanner);
     } else {
       self.statement(scanner)
     }
+  }
+
+  fn fun_declaration(&mut self, scanner: &mut Scanner) {
+    let global = self.parse_variable("Expected a function name.", scanner);
+    // self.mark_initialized();
+    self.function(FunctionType::Function);
+    self.define_variable(global);
+  }
+
+  fn function(&mut self, function_type: FunctionType) {
+    let compiler = Compiler::new(self.source, self.strings);
+    self.begin_scope();
+
+    // Compile the parameter list
+    self.consume(TokenKind::LeftParen, "Expect '(' after function name.");
+    self.consume(TokenKind::RightParen, "Expect ')' after parameters.");
+
+    // Compile the body
+    self.consume(TokenKind::LeftBrace, "Expect '{' before function body.");
+    self.block();
+
+    if Some(function) = compiler.compile(source) {}
   }
 
   fn var_declaration(&mut self, scanner: &mut Scanner) {
@@ -576,7 +605,9 @@ impl<'a> Compiler<'a> {
           let value = if let Some(existing_string) = compiler.strings.get(string) {
             existing_string.to_string()
           } else {
-            String::from(string)
+            let new_string = String::from(string);
+            compiler.strings.insert(new_string);
+            new_string
           };
           let index = compiler.function.chunk.add_constant(Value::String(value));
           compiler
