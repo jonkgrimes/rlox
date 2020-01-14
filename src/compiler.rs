@@ -32,7 +32,7 @@ enum Precedence {
   Primary,
 }
 
-type ParseFn = fn(compiler: &mut Compiler, scanner: &mut Scanner, can_assign: bool);
+type ParseFn = fn(compiler: &mut Compiler, can_assign: bool);
 
 struct ParseRule {
   pub prefix: Option<ParseFn>,
@@ -51,6 +51,7 @@ impl ParseRule {
 }
 
 struct Compiler<'a> {
+  source: &'a str,
   scanner: Scanner<'a>,
   function: Function,
   function_type: FunctionType,
@@ -70,8 +71,7 @@ struct Local {
 }
 
 pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
-  let mut scanner = Scanner::new(source);
-  let mut compiler = Compiler::new(scanner, strings);
+  let mut compiler = Compiler::new(source, strings);
   if compiler.compile(source) {
     Ok(compiler.function)
   } else {
@@ -82,10 +82,12 @@ pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, 
 }
 
 impl<'a> Compiler<'a> {
-  fn new(scanner: Scanner<'a>, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+    let mut scanner = Scanner::new(source);
     Compiler {
-      scanner,
+      source,
       strings,
+      scanner,
       function: Function::new(""),
       function_type: FunctionType::Script,
       current: None,
@@ -98,14 +100,13 @@ impl<'a> Compiler<'a> {
   }
 
   fn compile(&mut self, source: &str) -> bool {
-    let mut scanner = Scanner::new(source);
-    self.advance(&mut scanner);
+    self.advance();
 
     loop {
-      if self.matches(TokenKind::Eof, &mut scanner) {
+      if self.matches(TokenKind::Eof) {
         break;
       }
-      self.declaration(&mut scanner);
+      self.declaration();
     }
 
     // emit return
@@ -119,11 +120,11 @@ impl<'a> Compiler<'a> {
     !self.had_error
   }
 
-  fn advance(&mut self, scanner: &mut Scanner) {
+  fn advance(&mut self) {
     self.previous = self.current.take();
 
     loop {
-      self.current = Some(scanner.scan_token());
+      self.current = Some(self.scanner.scan_token());
 
       if let Some(token) = &self.current {
         match &token.kind {
@@ -137,10 +138,10 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn consume(&mut self, scanner: &mut Scanner, kind: TokenKind, message: &str) {
+  fn consume(&mut self, kind: TokenKind, message: &str) {
     if let Some(current) = &self.current {
       if current.kind == kind {
-        self.advance(scanner);
+        self.advance();
       } else {
         self.error_at_current(message);
         self.had_error = true;
@@ -156,11 +157,7 @@ impl<'a> Compiler<'a> {
       TokenKind::Error(error) => println!(": {}: {}", error, message),
       _ => {
         let range = token.start..(token.start + token.length);
-        println!(
-          " at '{}': {}",
-          self.scanner.source.get(range).unwrap(),
-          message
-        );
+        println!(" at '{}': {}", self.source.get(range).unwrap(), message);
       }
     }
   }
@@ -170,13 +167,13 @@ impl<'a> Compiler<'a> {
     self.error_at(current, message);
   }
 
-  fn parse_precedence(&mut self, precedence: Precedence, scanner: &mut Scanner) {
-    self.advance(scanner);
+  fn parse_precedence(&mut self, precedence: Precedence) {
+    self.advance();
     let can_assign = precedence <= Precedence::Assignment;
 
     let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
     if let Some(prefix_fn) = parse_rule.prefix {
-      prefix_fn(self, scanner, can_assign);
+      prefix_fn(self, can_assign);
     } else {
       self.error_at_current("Expect expression.");
       return ();
@@ -187,17 +184,17 @@ impl<'a> Compiler<'a> {
         .get_rule(&self.current.as_ref().unwrap().kind.clone())
         .precedence
     {
-      self.advance(scanner);
+      self.advance();
       let infix_fn = self
         .get_rule(&self.previous.as_ref().unwrap().kind.clone())
         .infix
         .unwrap();
-      infix_fn(self, scanner, can_assign);
+      infix_fn(self, can_assign);
     }
 
-    if can_assign && self.matches(TokenKind::Equal, scanner) {
+    if can_assign && self.matches(TokenKind::Equal) {
       self.error_at_current("Invalid assignment target.");
-      self.expression(scanner);
+      self.expression();
     }
   }
 
@@ -233,32 +230,32 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn matches(&mut self, kind: TokenKind, scanner: &mut Scanner) -> bool {
+  fn matches(&mut self, kind: TokenKind) -> bool {
     if !self.current.as_ref().map_or(false, |c| c.kind == kind) {
       return false;
     }
-    self.advance(scanner);
+    self.advance();
     true
   }
 
-  fn declaration(&mut self, scanner: &mut Scanner) {
-    if self.matches(TokenKind::Fun, scanner) {
-      self.fun_declaration(scanner);
-    } else if self.matches(TokenKind::Var, scanner) {
-      self.var_declaration(scanner);
+  fn declaration(&mut self) {
+    if self.matches(TokenKind::Fun) {
+      self.fun_declaration();
+    } else if self.matches(TokenKind::Var) {
+      self.var_declaration();
     } else {
-      self.statement(scanner)
+      self.statement()
     }
   }
 
-  fn fun_declaration(&mut self, scanner: &mut Scanner) {
-    let global = self.parse_variable("Expected a function name.", scanner);
+  fn fun_declaration(&mut self) {
+    let global = self.parse_variable("Expected a function name.");
     // self.mark_initialized();
-    self.function(FunctionType::Function);
+    self.function(FunctionType::Function, global);
     self.define_variable(global);
   }
 
-  fn function(&mut self, function_type: FunctionType) {
+  fn function(&mut self, function_type: FunctionType, constant_index: usize) {
     let compiler = Compiler::new(self.source, self.strings);
     self.begin_scope();
 
@@ -270,14 +267,19 @@ impl<'a> Compiler<'a> {
     self.consume(TokenKind::LeftBrace, "Expect '{' before function body.");
     self.block();
 
-    if Some(function) = compiler.compile(source) {}
+    if Some(function) = compiler.compile(self.source) {
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Constant(constant_index), self.scanner.line() as u32)
+    }
   }
 
-  fn var_declaration(&mut self, scanner: &mut Scanner) {
-    let global = self.parse_variable("Expect variable name", scanner);
+  fn var_declaration(&mut self) {
+    let global = self.parse_variable("Expect variable name");
 
-    if self.matches(TokenKind::Equal, scanner) {
-      self.expression(scanner);
+    if self.matches(TokenKind::Equal) {
+      self.expression();
     } else {
       self
         .function
@@ -286,7 +288,6 @@ impl<'a> Compiler<'a> {
     }
 
     self.consume(
-      scanner,
       TokenKind::Semicolon,
       "Expect ';' after variable declaration.",
     );
@@ -294,8 +295,8 @@ impl<'a> Compiler<'a> {
     self.define_variable(global);
   }
 
-  fn parse_variable(&mut self, error: &str, scanner: &mut Scanner) -> usize {
-    self.consume(scanner, TokenKind::Identifier, error);
+  fn parse_variable(&mut self, error: &str) -> usize {
+    self.consume(TokenKind::Identifier, error);
 
     self.declare_variable();
     if self.scope_depth > 0 {
@@ -351,46 +352,42 @@ impl<'a> Compiler<'a> {
     index
   }
 
-  fn statement(&mut self, scanner: &mut Scanner) {
-    if self.matches(TokenKind::Print, scanner) {
-      self.print_statement(scanner);
-    } else if self.matches(TokenKind::For, scanner) {
-      self.for_statement(scanner);
-    } else if self.matches(TokenKind::If, scanner) {
-      self.if_statement(scanner);
-    } else if self.matches(TokenKind::While, scanner) {
-      self.while_statement(scanner);
-    } else if self.matches(TokenKind::LeftBrace, scanner) {
+  fn statement(&mut self) {
+    if self.matches(TokenKind::Print) {
+      self.print_statement();
+    } else if self.matches(TokenKind::For) {
+      self.for_statement();
+    } else if self.matches(TokenKind::If) {
+      self.if_statement();
+    } else if self.matches(TokenKind::While) {
+      self.while_statement();
+    } else if self.matches(TokenKind::LeftBrace) {
       self.begin_scope();
-      self.block(scanner);
-      self.end_scope(scanner);
+      self.block();
+      self.end_scope();
     } else {
-      self.expression_statement(scanner);
+      self.expression_statement();
     }
   }
 
-  fn print_statement(&mut self, scanner: &mut Scanner) {
-    self.expression(scanner);
-    self.consume(scanner, TokenKind::Semicolon, "Expect ';' after value.");
+  fn print_statement(&mut self) {
+    self.expression();
+    self.consume(TokenKind::Semicolon, "Expect ';' after value.");
     self
       .function
       .chunk
       .write_chunk(OpCode::Print, self.current.as_ref().unwrap().line as u32);
   }
 
-  fn if_statement(&mut self, scanner: &mut Scanner) {
-    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'if'");
-    self.expression(scanner);
-    self.consume(
-      scanner,
-      TokenKind::RightParen,
-      "Expect ')' after condition.",
-    );
+  fn if_statement(&mut self) {
+    self.consume(TokenKind::LeftParen, "Expect '(' after 'if'");
+    self.expression();
+    self.consume(TokenKind::RightParen, "Expect ')' after condition.");
 
     let then_jmp = self.emit_jump(OpCode::JumpIfFalse(0));
     let line = self.current.as_ref().unwrap().line as u32;
     self.function.chunk.write_chunk(OpCode::Pop, line);
-    self.statement(scanner);
+    self.statement();
 
     let else_jmp = self.emit_jump(OpCode::Jump(0));
 
@@ -398,30 +395,26 @@ impl<'a> Compiler<'a> {
     let line = self.current.as_ref().unwrap().line as u32;
     self.function.chunk.write_chunk(OpCode::Pop, line);
 
-    if self.matches(TokenKind::Else, scanner) {
-      self.statement(scanner);
+    if self.matches(TokenKind::Else) {
+      self.statement();
     }
     self.patch_jump(else_jmp);
   }
 
-  fn while_statement(&mut self, scanner: &mut Scanner) {
+  fn while_statement(&mut self) {
     let loop_start = self.function.chunk.code.len();
-    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'while'.");
-    self.expression(scanner);
+    self.consume(TokenKind::LeftParen, "Expect '(' after 'while'.");
+    self.expression();
 
-    self.consume(
-      scanner,
-      TokenKind::RightParen,
-      "Expect ')' after condition.",
-    );
+    self.consume(TokenKind::RightParen, "Expect ')' after condition.");
 
     let exit_jump = self.emit_jump(OpCode::JumpIfFalse(0));
 
     self
       .function
       .chunk
-      .write_chunk(OpCode::Pop, scanner.line() as u32);
-    self.statement(scanner);
+      .write_chunk(OpCode::Pop, self.scanner.line() as u32);
+    self.statement();
 
     self.emit_loop(loop_start);
 
@@ -429,64 +422,56 @@ impl<'a> Compiler<'a> {
     self
       .function
       .chunk
-      .write_chunk(OpCode::Pop, scanner.line() as u32);
+      .write_chunk(OpCode::Pop, self.scanner.line() as u32);
   }
 
-  fn for_statement(&mut self, scanner: &mut Scanner) {
+  fn for_statement(&mut self) {
     self.begin_scope();
 
     // Initializer clause
-    self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'for'");
-    if self.matches(TokenKind::Semicolon, scanner) {
+    self.consume(TokenKind::LeftParen, "Expect '(' after 'for'");
+    if self.matches(TokenKind::Semicolon) {
       // No initializer
-    } else if self.matches(TokenKind::Var, scanner) {
-      self.var_declaration(scanner);
+    } else if self.matches(TokenKind::Var) {
+      self.var_declaration();
     } else {
-      self.expression_statement(scanner);
+      self.expression_statement();
     }
 
     let mut loop_start = self.function.chunk.code.len();
 
     // Condition clause
     let mut exit_jump = None;
-    if !self.matches(TokenKind::Semicolon, scanner) {
-      self.expression(scanner);
-      self.consume(
-        scanner,
-        TokenKind::Semicolon,
-        "Expect ';' after loop condition.",
-      );
+    if !self.matches(TokenKind::Semicolon) {
+      self.expression();
+      self.consume(TokenKind::Semicolon, "Expect ';' after loop condition.");
 
       exit_jump = Some(self.emit_jump(OpCode::JumpIfFalse(0)));
       self
         .function
         .chunk
-        .write_chunk(OpCode::Pop, scanner.line() as u32);
+        .write_chunk(OpCode::Pop, self.scanner.line() as u32);
     }
 
     // Increment clause
-    if !self.matches(TokenKind::RightParen, scanner) {
+    if !self.matches(TokenKind::RightParen) {
       let body_jump = self.emit_jump(OpCode::Jump(0));
 
       let inc_start = self.function.chunk.code.len();
 
-      self.expression(scanner);
+      self.expression();
       self
         .function
         .chunk
-        .write_chunk(OpCode::Pop, scanner.line() as u32);
-      self.consume(
-        scanner,
-        TokenKind::RightParen,
-        "Expect ')' after for clauses.",
-      );
+        .write_chunk(OpCode::Pop, self.scanner.line() as u32);
+      self.consume(TokenKind::RightParen, "Expect ')' after for clauses.");
 
       self.emit_loop(loop_start);
       loop_start = inc_start;
       self.patch_jump(body_jump);
     }
 
-    self.statement(scanner);
+    self.statement();
 
     self.emit_loop(loop_start);
 
@@ -495,10 +480,10 @@ impl<'a> Compiler<'a> {
       self
         .function
         .chunk
-        .write_chunk(OpCode::Pop, scanner.line() as u32);
+        .write_chunk(OpCode::Pop, self.scanner.line() as u32);
     }
 
-    self.end_scope(scanner);
+    self.end_scope();
   }
 
   fn emit_jump(&mut self, op_code: OpCode) -> usize {
@@ -524,13 +509,9 @@ impl<'a> Compiler<'a> {
     self.function.chunk.write_chunk(OpCode::Loop(offset), line);
   }
 
-  fn expression_statement(&mut self, scanner: &mut Scanner) {
-    self.expression(scanner);
-    self.consume(
-      scanner,
-      TokenKind::Semicolon,
-      "Expect ';' after expression.",
-    );
+  fn expression_statement(&mut self) {
+    self.expression();
+    self.consume(TokenKind::Semicolon, "Expect ';' after expression.");
     self
       .function
       .chunk
@@ -541,17 +522,17 @@ impl<'a> Compiler<'a> {
     self.scope_depth += 1;
   }
 
-  fn block(&mut self, scanner: &mut Scanner) {
+  fn block(&mut self) {
     loop {
-      if self.matches(TokenKind::RightBrace, scanner) || self.matches(TokenKind::Eof, scanner) {
+      if self.matches(TokenKind::RightBrace) || self.matches(TokenKind::Eof) {
         break;
       }
 
-      self.declaration(scanner)
+      self.declaration()
     }
   }
 
-  fn end_scope(&mut self, scanner: &mut Scanner) {
+  fn end_scope(&mut self) {
     self.scope_depth -= 1;
 
     loop {
@@ -562,16 +543,16 @@ impl<'a> Compiler<'a> {
       self
         .function
         .chunk
-        .write_chunk(OpCode::Pop, scanner.line() as u32);
+        .write_chunk(OpCode::Pop, self.scanner.line() as u32);
       self.local_count -= 1;
     }
   }
 
-  fn expression(&mut self, scanner: &mut Scanner) {
-    self.parse_precedence(Precedence::Assignment, scanner);
+  fn expression(&mut self) {
+    self.parse_precedence(Precedence::Assignment);
   }
 
-  fn number(compiler: &mut Compiler, scanner: &mut Scanner, _can_assgin: bool) {
+  fn number(compiler: &mut Compiler, _can_assgin: bool) {
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -587,7 +568,7 @@ impl<'a> Compiler<'a> {
             compiler
               .function
               .chunk
-              .write_chunk(OpCode::Constant(index), scanner.line() as u32);
+              .write_chunk(OpCode::Constant(index), compiler.scanner.line() as u32);
           }
         }
         None => (),
@@ -595,7 +576,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn string(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn string(compiler: &mut Compiler, _can_assign: bool) {
     if let Some(token) = &compiler.previous {
       let source = compiler
         .source
@@ -613,50 +594,46 @@ impl<'a> Compiler<'a> {
           compiler
             .function
             .chunk
-            .write_chunk(OpCode::Constant(index), scanner.line() as u32);
+            .write_chunk(OpCode::Constant(index), compiler.scanner.line() as u32);
         }
         None => (),
       }
     }
   }
 
-  fn grouping(compiler: &mut Compiler, scanner: &mut Scanner, _can_assgin: bool) {
-    compiler.expression(scanner);
-    compiler.consume(
-      scanner,
-      TokenKind::RightParen,
-      "Expect a ')' after expression.",
-    );
+  fn grouping(compiler: &mut Compiler, _can_assgin: bool) {
+    compiler.expression();
+    compiler.consume(TokenKind::RightParen, "Expect a ')' after expression.");
   }
 
-  fn unary(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn unary(compiler: &mut Compiler, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
 
-    compiler.parse_precedence(Precedence::Unary, scanner);
+    compiler.parse_precedence(Precedence::Unary);
 
     match operator {
       TokenKind::Minus => {
         compiler
           .function
           .chunk
-          .write_chunk(OpCode::Negate, scanner.line() as u32);
+          .write_chunk(OpCode::Negate, compiler.scanner.line() as u32);
       }
       TokenKind::Bang => {
         compiler
           .function
           .chunk
-          .write_chunk(OpCode::Not, scanner.line() as u32);
+          .write_chunk(OpCode::Not, compiler.scanner.line() as u32);
       }
       _ => (),
     }
   }
 
-  fn binary(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn binary(compiler: &mut Compiler, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     let rule = compiler.get_rule(&operator);
-    compiler.parse_precedence(rule.precedence, scanner);
+    compiler.parse_precedence(rule.precedence);
 
-    let line = scanner.line() as u32;
+    let line = compiler.scanner.line() as u32;
 
     match operator {
       TokenKind::Plus => compiler.function.chunk.write_chunk(OpCode::Add, line),
@@ -682,20 +659,20 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn and(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn and(compiler: &mut Compiler, _can_assign: bool) {
     let end_jump = compiler.emit_jump(OpCode::JumpIfFalse(0));
 
     compiler
       .function
       .chunk
-      .write_chunk(OpCode::Pop, scanner.line() as u32);
+      .write_chunk(OpCode::Pop, compiler.scanner.line() as u32);
 
-    compiler.parse_precedence(Precedence::And, scanner);
+    compiler.parse_precedence(Precedence::And);
 
     compiler.patch_jump(end_jump);
   }
 
-  fn or(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn or(compiler: &mut Compiler, _can_assign: bool) {
     let else_jump = compiler.emit_jump(OpCode::JumpIfFalse(0));
     let end_jump = compiler.emit_jump(OpCode::Jump(0));
 
@@ -703,36 +680,36 @@ impl<'a> Compiler<'a> {
     compiler
       .function
       .chunk
-      .write_chunk(OpCode::Pop, scanner.line() as u32);
+      .write_chunk(OpCode::Pop, compiler.scanner.line() as u32);
 
-    compiler.parse_precedence(Precedence::Or, scanner);
+    compiler.parse_precedence(Precedence::Or);
     compiler.patch_jump(end_jump);
   }
 
-  fn literal(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+  fn literal(compiler: &mut Compiler, _can_assign: bool) {
     let operator = compiler.previous.as_ref().unwrap().kind.clone();
     match operator {
       TokenKind::Nil => compiler
         .function
         .chunk
-        .write_chunk(OpCode::Nil, scanner.line() as u32),
+        .write_chunk(OpCode::Nil, compiler.scanner.line() as u32),
       TokenKind::True => compiler
         .function
         .chunk
-        .write_chunk(OpCode::True, scanner.line() as u32),
+        .write_chunk(OpCode::True, compiler.scanner.line() as u32),
       TokenKind::False => compiler
         .function
         .chunk
-        .write_chunk(OpCode::False, scanner.line() as u32),
+        .write_chunk(OpCode::False, compiler.scanner.line() as u32),
       _ => (),
     }
   }
 
-  fn variable(compiler: &mut Compiler, scanner: &mut Scanner, can_assign: bool) {
-    compiler.named_variable(scanner, can_assign);
+  fn variable(compiler: &mut Compiler, can_assign: bool) {
+    compiler.named_variable(can_assign);
   }
 
-  fn named_variable(&mut self, scanner: &mut Scanner, can_assign: bool) {
+  fn named_variable(&mut self, can_assign: bool) {
     let token = self.previous.as_ref().unwrap();
     let get_op;
     let set_op;
@@ -745,10 +722,10 @@ impl<'a> Compiler<'a> {
       get_op = OpCode::GetGlobal(index);
       set_op = OpCode::SetGlobal(index);
     }
-    let line = scanner.line() as u32;
+    let line = self.scanner.line() as u32;
 
-    if can_assign && self.matches(TokenKind::Equal, scanner) {
-      self.expression(scanner);
+    if can_assign && self.matches(TokenKind::Equal) {
+      self.expression();
       self.function.chunk.write_chunk(set_op, line);
     } else {
       self.function.chunk.write_chunk(get_op, line);
