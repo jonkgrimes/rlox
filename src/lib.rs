@@ -18,7 +18,6 @@ mod token;
 mod value;
 mod vm;
 
-use chunk::Chunk;
 use op_code::OpCode;
 use vm::{Vm, VmResult};
 

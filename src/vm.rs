@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::compiler;
 use crate::function::Function;
 use crate::value::Value;
-use crate::{Chunk, OpCode};
+use crate::OpCode;
 
 const STACK_MAX: usize = 256;
 const FRAMES_MAX: usize = 64;
@@ -58,7 +58,8 @@ impl Vm {
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
     let mut frames: Vec<CallFrame> = Vec::new();
-    if let Ok(function) = compiler::compile(source, &mut self.strings) {
+    let function = Function::new("");
+    if let Ok(function) = compiler::compile(source, function, &mut self.strings) {
       frames.push(CallFrame {
         function: &function,
         ip: 0,
@@ -71,7 +72,7 @@ impl Vm {
   }
 
   fn run(&mut self, mut frames: Vec<CallFrame>) -> VmResult {
-    let frame = frames.last_mut().unwrap();
+    let frame = frames.first_mut().unwrap();
     let chunk = &frame.function.chunk;
 
     loop {

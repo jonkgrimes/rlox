@@ -53,7 +53,6 @@ impl ParseRule {
 struct Compiler<'a> {
   source: &'a str,
   scanner: Scanner<'a>,
-  function: Function,
   function_type: FunctionType,
   strings: &'a mut HashSet<String>,
   current: Option<Token>,
@@ -70,25 +69,22 @@ struct Local {
   depth: u32,
 }
 
-pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
+pub fn compile(
+  source: &str,
+  function: Function,
+  strings: &mut HashSet<String>,
+) -> Result<Function, CompilerError> {
   let mut compiler = Compiler::new(source, strings);
-  if compiler.compile(source) {
-    Ok(compiler.function)
-  } else {
-    Err(CompilerError(
-      "There was an error during compilation".to_string(),
-    ))
-  }
+  compiler.compile(source, function)
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
     let mut scanner = Scanner::new(source);
     Compiler {
       source,
       strings,
       scanner,
-      function: Function::new(""),
       function_type: FunctionType::Script,
       current: None,
       previous: None,
@@ -99,7 +95,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn compile(&mut self, source: &str) -> bool {
+  fn compile(&mut self, function: Function, source: &str) -> Result<Function, CompilerError> {
     self.advance();
 
     loop {
@@ -117,7 +113,14 @@ impl<'a> Compiler<'a> {
     if self.had_error {
       self.function.chunk.disassemble("Total Chunk")
     }
-    !self.had_error
+
+    if self.had_error {
+      Ok(self.function)
+    } else {
+      Err(CompilerError(
+        "There was an error during compilation".to_string(),
+      ))
+    }
   }
 
   fn advance(&mut self) {
@@ -256,7 +259,8 @@ impl<'a> Compiler<'a> {
   }
 
   fn function(&mut self, function_type: FunctionType, constant_index: usize) {
-    let compiler = Compiler::new(self.source, self.strings);
+    let function = Function::new("a-function");
+    let compiler = Compiler::new(self.source, function, self.strings);
     self.begin_scope();
 
     // Compile the parameter list
@@ -267,7 +271,12 @@ impl<'a> Compiler<'a> {
     self.consume(TokenKind::LeftBrace, "Expect '{' before function body.");
     self.block();
 
-    if Some(function) = compiler.compile(self.source) {
+    let constant = self.function.chunk.constants.get(constant_index).unwrap();
+    let name = match constant {
+      Value::String(string) => string,
+    };
+    let function = Function::new(&name);
+    if let Ok(function) = compiler.compile(self.source) {
       self
         .function
         .chunk
