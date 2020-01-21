@@ -70,7 +70,8 @@ struct Local {
 }
 
 pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
-  let mut compiler = Compiler::new(source, strings);
+  let function = Function::new("");
+  let mut compiler = Compiler::new(source, function, strings);
   if compiler.compile(source) {
     Ok(compiler.function)
   } else {
@@ -81,11 +82,11 @@ pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, 
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &'a str, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
     Compiler {
       source,
       strings,
-      function: Function::new(""),
+      function,
       function_type: FunctionType::Script,
       current: None,
       previous: None,

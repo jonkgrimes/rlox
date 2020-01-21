@@ -1,6 +1,6 @@
 use crate::chunk::Chunk;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum OpCode {
   Return,
   Negate,

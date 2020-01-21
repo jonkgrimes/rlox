@@ -2,6 +2,7 @@ use crate::object::Object;
 use crate::op_code::OpCode;
 use crate::value::Value;
 
+#[derive(Debug, Clone)]
 pub struct Chunk {
   pub code: Vec<OpCode>,
   pub lines: Vec<u32>,

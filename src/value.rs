@@ -1,12 +1,15 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::function::Function;
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
   Nil,
   Bool(bool),
   Number(f32),
   String(String),
+  Function(Function),
 }
 
 impl Value {
@@ -54,6 +57,7 @@ impl fmt::Display for Value {
       Value::Bool(value) => write!(f, "{}", value),
       Value::Number(value) => write!(f, "{}", value),
       Value::String(value) => write!(f, "{}", *value),
+      Value::Function(function) => write!(f, "{}", function),
     }
   }
 }
