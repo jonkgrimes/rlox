@@ -69,8 +69,11 @@ struct Local {
   depth: u32,
 }
 
-pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
-  let function = Function::new("");
+pub fn compile(
+  source: &str,
+  function: Function,
+  strings: &mut HashSet<String>,
+) -> Result<Function, CompilerError> {
   let mut scanner = Scanner::new(source);
   let mut compiler = Compiler::new(source, function, strings);
   if compiler.compile(source, &mut scanner) {

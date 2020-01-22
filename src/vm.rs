@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::compiler::compile;
+use crate::function::Function;
 use crate::value::Value;
 use crate::{Chunk, OpCode};
 
 const STACK_MAX: usize = 256;
+const FRAMES_MAX: usize = 64;
 
 macro_rules! bin_op {
   ( $self:ident, $op:tt ) => {{
@@ -27,6 +29,13 @@ pub struct Vm {
   ip: usize,
   stack: Vec<Value>,
   stack_top: usize,
+  frame_count: usize,
+}
+
+struct CallFrame<'a> {
+  function: &'a Function,
+  ip: usize,
+  slots: usize,
 }
 
 pub enum VmResult {
@@ -43,25 +52,36 @@ impl Vm {
       globals: HashMap::new(),
       stack: Vec::with_capacity(STACK_MAX),
       stack_top: 0,
+      frame_count: 0,
     }
   }
 
   pub fn interpret(&mut self, source: &str) -> VmResult {
-    if let Ok(function) = compile(source, &mut self.strings) {
-      self.run(function.chunk)
+    let mut frames: Vec<CallFrame> = Vec::new();
+    let function = Function::new("");
+    if let Ok(function) = compile(source, function, &mut self.strings) {
+      frames.push(CallFrame {
+        function: &function,
+        ip: 0,
+        slots: self.stack_top,
+      });
+      self.run(frames)
     } else {
       return VmResult::CompileError;
     }
   }
 
-  fn run(&mut self, chunk: Chunk) -> VmResult {
+  fn run(&mut self, mut frames: Vec<CallFrame>) -> VmResult {
+    let frame = frames.first_mut().unwrap();
+    let chunk = &frame.function.chunk;
+
     loop {
-      let op_code = &chunk.code[self.ip];
+      let op_code = &chunk.code[frame.ip];
 
       if cfg!(feature = "debug") {
         self.print_stack();
         self.print_globals();
-        op_code.disassemble_instruction(&chunk, self.ip);
+        op_code.disassemble_instruction(&chunk, frame.ip);
       }
 
       match op_code {
@@ -206,28 +226,28 @@ impl Vm {
         OpCode::SetLocal(index) => {
           let i = (*index).clone();
           let value = self.peek(0);
-          self.stack[i] = value.clone();
+          self.stack[frame.slots + *index] = value.clone();
         }
         OpCode::GetLocal(index) => {
           let i = (*index).clone();
-          let value = self.stack[i].clone();
+          let value = self.stack[frame.slots + *index].clone();
           self.push(value);
         }
         OpCode::JumpIfFalse(offset) => {
           let value = self.peek(0);
           if value.is_falsey() {
-            self.ip += offset;
+            frame.ip += offset;
           }
         }
         OpCode::Jump(offset) => {
-          self.ip += offset;
+          frame.ip += offset;
         }
         OpCode::Loop(offset) => {
-          self.ip -= offset + 1;
+          frame.ip -= offset + 1;
         }
       }
 
-      self.ip += 1
+      frame.ip += 1
     }
   }
 
