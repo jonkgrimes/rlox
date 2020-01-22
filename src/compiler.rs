@@ -71,8 +71,9 @@ struct Local {
 
 pub fn compile(source: &str, strings: &mut HashSet<String>) -> Result<Function, CompilerError> {
   let function = Function::new("");
+  let mut scanner = Scanner::new(source);
   let mut compiler = Compiler::new(source, function, strings);
-  if compiler.compile(source) {
+  if compiler.compile(source, &mut scanner) {
     Ok(compiler.function)
   } else {
     Err(CompilerError(
@@ -97,15 +98,14 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn compile(&mut self, source: &str) -> bool {
-    let mut scanner = Scanner::new(source);
-    self.advance(&mut scanner);
+  fn compile(&mut self, source: &str, scanner: &mut Scanner) -> bool {
+    self.advance(scanner);
 
     loop {
-      if self.matches(TokenKind::Eof, &mut scanner) {
+      if self.matches(TokenKind::Eof, scanner) {
         break;
       }
-      self.declaration(&mut scanner);
+      self.declaration(scanner);
     }
 
     // emit return
