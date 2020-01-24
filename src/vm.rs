@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::compiler::compile;
 use crate::function::Function;
 use crate::value::Value;
-use crate::{Chunk, OpCode};
+use crate::OpCode;
 
 const STACK_MAX: usize = 256;
 const FRAMES_MAX: usize = 64;
@@ -224,12 +224,10 @@ impl Vm {
           }
         }
         OpCode::SetLocal(index) => {
-          let i = (*index).clone();
           let value = self.peek(0);
           self.stack[frame.slots + *index] = value.clone();
         }
         OpCode::GetLocal(index) => {
-          let i = (*index).clone();
           let value = self.stack[frame.slots + *index].clone();
           self.push(value);
         }

@@ -23,10 +23,6 @@ impl Function {
       chunk: Chunk::new(),
     }
   }
-
-  pub fn name(&self) -> &str {
-    &self.name
-  }
 }
 
 impl fmt::Display for Function {

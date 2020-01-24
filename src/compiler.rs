@@ -76,13 +76,7 @@ pub fn compile(
 ) -> Result<Function, CompilerError> {
   let mut scanner = Scanner::new(source);
   let mut compiler = Compiler::new(source, function, strings);
-  if compiler.compile(source, &mut scanner) {
-    Ok(compiler.function)
-  } else {
-    Err(CompilerError(
-      "There was an error during compilation".to_string(),
-    ))
-  }
+  compiler.compile(source, &mut scanner)
 }
 
 impl<'a> Compiler<'a> {
@@ -101,7 +95,7 @@ impl<'a> Compiler<'a> {
     }
   }
 
-  fn compile(&mut self, source: &str, scanner: &mut Scanner) -> bool {
+  fn compile(&mut self, source: &str, scanner: &mut Scanner) -> Result<Function, CompilerError> {
     self.advance(scanner);
 
     loop {
@@ -116,10 +110,18 @@ impl<'a> Compiler<'a> {
       .function
       .chunk
       .write_chunk(OpCode::Return, self.current.as_ref().unwrap().line as u32);
+
     if self.had_error {
       self.function.chunk.disassemble("Total Chunk")
     }
-    !self.had_error
+
+    if !self.had_error {
+      Ok(self.function.clone())
+    } else {
+      Err(CompilerError(
+        "There was an error during compilation".to_string(),
+      ))
+    }
   }
 
   fn advance(&mut self, scanner: &mut Scanner) {
@@ -129,6 +131,7 @@ impl<'a> Compiler<'a> {
       self.current = Some(scanner.scan_token());
 
       if let Some(token) = &self.current {
+        println!("{:?}", token);
         match &token.kind {
           TokenKind::Error(err_msg) => {
             self.error_at_current(err_msg);
@@ -145,6 +148,8 @@ impl<'a> Compiler<'a> {
       if current.kind == kind {
         self.advance(scanner);
       }
+    } else {
+      self.error_at_current(message);
     }
   }
 
@@ -152,8 +157,8 @@ impl<'a> Compiler<'a> {
     print!("[line {}] Error", token.line);
 
     match token.kind {
-      TokenKind::Eof => println!(" at end of line."),
-      TokenKind::Error(error) => println!(": {}", error),
+      TokenKind::Eof => println!(" at end of line: {}", message),
+      TokenKind::Error(error) => println!(": {}: {}", error, message),
       _ => {
         let range = token.start..(token.start + token.length);
         println!(" at '{}'", self.source.get(range).unwrap());
@@ -238,10 +243,63 @@ impl<'a> Compiler<'a> {
   }
 
   fn declaration(&mut self, scanner: &mut Scanner) {
-    if self.matches(TokenKind::Var, scanner) {
+    if self.matches(TokenKind::Fun, scanner) {
+      self.fun_declaration(scanner);
+    } else if self.matches(TokenKind::Var, scanner) {
       self.var_declaration(scanner);
     } else {
       self.statement(scanner)
+    }
+  }
+
+  fn fun_declaration(&mut self, scanner: &mut Scanner) {
+    let global = self.parse_variable("Expected a function name.", scanner);
+    // self.mark_initialized();
+    self.function(scanner, FunctionType::Function, global);
+    self.define_variable(global);
+  }
+
+  fn function(
+    &mut self,
+    scanner: &mut Scanner,
+    function_type: FunctionType,
+    constant_index: usize,
+  ) {
+    self.begin_scope(scanner);
+
+    // Compile the parameter list
+    self.consume(
+      scanner,
+      TokenKind::LeftParen,
+      "Expect '(' after function name.",
+    );
+    self.consume(
+      scanner,
+      TokenKind::RightParen,
+      "Expect ')' after parameters.",
+    );
+    // Compile the body
+    self.consume(
+      scanner,
+      TokenKind::LeftBrace,
+      "Expect '{' before function body.",
+    );
+    self.block(scanner);
+
+    let constant = self.function.chunk.constants.get(constant_index).unwrap();
+    let name = match constant {
+      Value::String(string) => string,
+      _ => "Undefined",
+    };
+    let function = Function::new(&name);
+    let mut compiler = Compiler::new(self.source, function, self.strings);
+    if let Ok(function) = compiler.compile(self.source, scanner) {
+      let index = self.function.chunk.add_constant(Value::Function(function));
+      println!("function = {:?}", self.function);
+      self
+        .function
+        .chunk
+        .write_chunk(OpCode::Constant(index), scanner.line() as u32)
     }
   }
 
