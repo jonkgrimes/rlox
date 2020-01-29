@@ -60,6 +60,7 @@ impl Vm {
     let mut frames: Vec<CallFrame> = Vec::new();
     let function = Function::new("");
     if let Ok(function) = compile(source, function, &mut self.strings) {
+      println!("script function = {:?}", function);
       frames.push(CallFrame {
         function: &function,
         ip: 0,
@@ -181,8 +182,8 @@ impl Vm {
           if let Some(constant) = constant {
             match constant {
               Value::String(obj) => {
-                let value = self.peek(0);
-                self.globals.insert(obj.clone(), value.clone());
+                let value = self.peek(0).clone();
+                self.globals.insert(obj.clone(), value);
                 self.pop();
               }
               _ => break VmResult::RuntimeError(String::from("Cannot resolve variable name.")),
@@ -209,8 +210,8 @@ impl Vm {
           if let Some(constant) = constant {
             match constant {
               Value::String(s) => {
-                let value = self.peek(0);
-                match self.globals.insert(s.clone(), value.clone()) {
+                let value = self.peek(0).clone();
+                match self.globals.insert(s.clone(), value) {
                   Some(_) => (),
                   None => {
                     let error = format!("Undefined variable '{}'", s);

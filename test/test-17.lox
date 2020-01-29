@@ -1,0 +1,5 @@
+fun areWeHavingFunYet() {
+  return "YES!!!";
+}
+
+print areWeHavingFunYet;

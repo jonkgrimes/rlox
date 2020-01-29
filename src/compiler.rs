@@ -59,14 +59,14 @@ struct Compiler<'a> {
   previous: Option<Token>,
   had_error: bool,
   locals: Vec<Local>,
-  local_count: u32,
-  scope_depth: u32,
+  local_count: usize,
+  scope_depth: usize,
 }
 
 #[derive(Debug)]
 struct Local {
   name: Token,
-  depth: u32,
+  depth: usize,
 }
 
 pub fn compile(
@@ -75,27 +75,33 @@ pub fn compile(
   strings: &mut HashSet<String>,
 ) -> Result<Function, CompilerError> {
   let mut scanner = Scanner::new(source);
-  let mut compiler = Compiler::new(source, function, strings);
-  compiler.compile(source, &mut scanner)
+  let mut compiler = Compiler::new(source, function, 0, strings);
+  compiler.compile(&mut scanner)
 }
 
 impl<'a> Compiler<'a> {
-  fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+  fn new(
+    source: &'a str,
+    function: Function,
+    scope_depth: usize,
+    strings: &'a mut HashSet<String>,
+  ) -> Compiler<'a> {
+    println!("Instantiating new Compiler");
     Compiler {
       source,
       strings,
       function,
+      scope_depth,
       function_type: FunctionType::Script,
       current: None,
       previous: None,
       had_error: false,
       locals: Vec::new(),
       local_count: 0,
-      scope_depth: 0,
     }
   }
 
-  fn compile(&mut self, source: &str, scanner: &mut Scanner) -> Result<Function, CompilerError> {
+  fn compile(&mut self, scanner: &mut Scanner) -> Result<Function, CompilerError> {
     self.advance(scanner);
 
     loop {
@@ -116,6 +122,7 @@ impl<'a> Compiler<'a> {
     }
 
     if !self.had_error {
+      println!("Compiler is returning");
       Ok(self.function.clone())
     } else {
       Err(CompilerError(
@@ -253,8 +260,9 @@ impl<'a> Compiler<'a> {
   }
 
   fn fun_declaration(&mut self, scanner: &mut Scanner) {
+    println!("fun_declaration");
     let global = self.parse_variable("Expected a function name.", scanner);
-    // self.mark_initialized();
+    self.mark_initialized();
     self.function(scanner, FunctionType::Function, global);
     self.define_variable(global);
   }
@@ -265,7 +273,7 @@ impl<'a> Compiler<'a> {
     function_type: FunctionType,
     constant_index: usize,
   ) {
-    self.begin_scope(scanner);
+    println!("function");
 
     // Compile the parameter list
     self.consume(
@@ -284,7 +292,6 @@ impl<'a> Compiler<'a> {
       TokenKind::LeftBrace,
       "Expect '{' before function body.",
     );
-    self.block(scanner);
 
     let constant = self.function.chunk.constants.get(constant_index).unwrap();
     let name = match constant {
@@ -292,15 +299,22 @@ impl<'a> Compiler<'a> {
       _ => "Undefined",
     };
     let function = Function::new(&name);
-    let mut compiler = Compiler::new(self.source, function, self.strings);
-    if let Ok(function) = compiler.compile(self.source, scanner) {
-      let index = self.function.chunk.add_constant(Value::Function(function));
-      println!("function = {:?}", self.function);
-      self
-        .function
-        .chunk
-        .write_chunk(OpCode::Constant(index), scanner.line() as u32)
-    }
+    let mut compiler = Compiler::new(self.source, function, self.scope_depth + 1, self.strings);
+    match compiler.compile(scanner) {
+      Ok(function) => {
+        println!("function = {:?}", function);
+        self.end_scope(scanner);
+        let index = self.function.chunk.add_constant(Value::Function(function));
+        self
+          .function
+          .chunk
+          .write_chunk(OpCode::Constant(index), scanner.line() as u32);
+      }
+      Err(e) => {
+        println!("{}", e);
+        self.error_at_current("There was a problem compiling the function.");
+      }
+    };
   }
 
   fn var_declaration(&mut self, scanner: &mut Scanner) {
@@ -325,6 +339,7 @@ impl<'a> Compiler<'a> {
   }
 
   fn parse_variable(&mut self, error: &str, scanner: &mut Scanner) -> usize {
+    println!("parse_variable");
     self.consume(scanner, TokenKind::Identifier, error);
 
     self.declare_variable();
@@ -365,6 +380,7 @@ impl<'a> Compiler<'a> {
 
   fn define_variable(&mut self, index: usize) {
     if self.scope_depth > 0 {
+      self.mark_initialized();
       return;
     }
 
@@ -379,6 +395,15 @@ impl<'a> Compiler<'a> {
     let identifier = String::from(source.unwrap());
     let index = self.function.chunk.add_constant(Value::String(identifier));
     index
+  }
+
+  fn mark_initialized(&mut self) {
+    println!("self.current = {:?}", self.current);
+    println!("self.scope_depth = {}", self.scope_depth);
+    if self.scope_depth == 0 {
+      return;
+    }
+    self.locals[self.local_count - 1].depth = self.scope_depth;
   }
 
   fn statement(&mut self, scanner: &mut Scanner) {
@@ -765,9 +790,9 @@ impl<'a> Compiler<'a> {
     let get_op;
     let set_op;
 
-    if let Some(arg) = self.resolve_local(token) {
-      get_op = OpCode::GetLocal(arg as usize);
-      set_op = OpCode::SetLocal(arg as usize);
+    if let Some(index) = self.resolve_local(token) {
+      get_op = OpCode::GetLocal(index);
+      set_op = OpCode::SetLocal(index);
     } else {
       let index = self.identifier_constant(&token.clone());
       get_op = OpCode::GetGlobal(index);
