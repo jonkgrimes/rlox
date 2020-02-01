@@ -59,6 +59,7 @@ struct Compiler<'a> {
     state: CompilerState,
 }
 
+#[derive(Debug, Clone)]
 struct CompilerState {
     previous: Option<Box<CompilerState>>,
     function: Function,
@@ -68,7 +69,7 @@ struct CompilerState {
     scope_depth: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Local {
     name: Token,
     depth: usize,
@@ -86,7 +87,6 @@ pub fn compile(
 
 impl<'a> Compiler<'a> {
     fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
-        println!("Instantiating new CompilerContext");
         let state: CompilerState = CompilerState {
             function,
             previous: None,
@@ -128,7 +128,6 @@ impl<'a> Compiler<'a> {
         }
 
         if !self.had_error {
-            println!("Compiler is returning");
             Ok(self.state.function.clone())
         } else {
             Err(CompilerError(
@@ -144,7 +143,6 @@ impl<'a> Compiler<'a> {
             self.current = Some(scanner.scan_token());
 
             if let Some(token) = &self.current {
-                println!("{:?}", token);
                 match &token.kind {
                     TokenKind::Error(err_msg) => {
                         self.error_at_current(err_msg);
@@ -174,7 +172,7 @@ impl<'a> Compiler<'a> {
             TokenKind::Error(error) => println!(": {}: {}", error, message),
             _ => {
                 let range = token.start..(token.start + token.length);
-                println!(" at '{}'", self.source.get(range).unwrap());
+                println!(": {} at '{}'", message, self.source.get(range).unwrap());
             }
         }
     }
@@ -278,11 +276,34 @@ impl<'a> Compiler<'a> {
     }
 
     fn fun_declaration(&mut self, scanner: &mut Scanner) {
-        println!("fun_declaration");
         let global = self.parse_variable("Expected a function name.", scanner);
         self.mark_initialized();
         self.function(scanner, FunctionType::Function, global);
         self.define_variable(global);
+    }
+
+    fn init_state(&mut self, function: Function) {
+        let previous = Some(Box::new(self.state.clone()));
+        let state: CompilerState = CompilerState {
+            function,
+            previous,
+            function_type: FunctionType::Function,
+            scope_depth: 0,
+            local_count: 0,
+            locals: Vec::new(),
+        };
+        self.state = state;
+    }
+
+    fn end_state(&mut self) -> Result<Function, CompilerError> {
+        let previous = self.state.previous.as_ref();
+        if let Some(state) = previous {
+            let function = self.state.function.clone();
+            self.state = (**state).clone();
+            Ok(function)
+        } else {
+            Ok(self.state.function.clone())
+        }
     }
 
     fn function(
@@ -291,7 +312,20 @@ impl<'a> Compiler<'a> {
         function_type: FunctionType,
         constant_index: usize,
     ) {
-        println!("function");
+        let constant = self
+            .state
+            .function
+            .chunk
+            .constants
+            .get(constant_index)
+            .unwrap();
+        let name = match constant {
+            Value::String(string) => string,
+            _ => "Undefined",
+        };
+        let function = Function::new(&name);
+        self.init_state(function);
+        self.begin_scope(scanner);
 
         // Compile the parameter list
         self.consume(
@@ -312,32 +346,11 @@ impl<'a> Compiler<'a> {
         );
         self.block(scanner);
 
-        let constant = self
-            .state
-            .function
-            .chunk
-            .constants
-            .get(constant_index)
-            .unwrap();
-        let name = match constant {
-            Value::String(string) => string,
-            _ => "Undefined",
-        };
-        let function = Function::new(&name);
-        let mut compiler = Compiler::new(self.source, function, self.strings);
-        match compiler.compile(scanner) {
+        match self.end_state() {
             Ok(function) => {
                 println!("function = {:?}", function);
-                self.end_scope(scanner);
-                let index = self
-                    .state
-                    .function
-                    .chunk
-                    .add_constant(Value::Function(function));
-                self.state
-                    .function
-                    .chunk
-                    .write_chunk(OpCode::Constant(index), scanner.line() as u32);
+                let index = self.add_constant(Value::Function(function));
+                self.emit_opcode(OpCode::Constant(index));
             }
             Err(e) => {
                 println!("{}", e);
@@ -376,7 +389,6 @@ impl<'a> Compiler<'a> {
     }
 
     fn parse_variable(&mut self, error: &str, scanner: &mut Scanner) -> usize {
-        println!("parse_variable");
         self.consume(scanner, TokenKind::Identifier, error);
 
         self.declare_variable();
@@ -436,13 +448,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn mark_initialized(&mut self) {
-        println!("self.current = {:?}", self.current);
-        println!("self.scope_depth = {}", self.scope_depth());
         if self.scope_depth() == 0 {
             return;
         }
-        println!("self.locals = {:?}", self.state.locals);
-        println!("self.local_count = {}", self.local_count());
         self.state.locals[self.state.local_count - 1].depth = self.scope_depth();
     }
 
