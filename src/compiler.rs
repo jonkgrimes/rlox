@@ -56,7 +56,7 @@ struct Compiler<'a> {
     current: Option<Token>,
     previous: Option<Token>,
     had_error: bool,
-    state: CompilerState,
+    state: Box<CompilerState>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,7 +101,7 @@ impl<'a> Compiler<'a> {
             current: None,
             previous: None,
             had_error: false,
-            state,
+            state: Box::new(state),
         }
     }
 
@@ -186,6 +186,7 @@ impl<'a> Compiler<'a> {
         self.advance(scanner);
         let can_assign = precedence <= Precedence::Assignment;
 
+        println!("self.previous = {:?}", self.previous);
         let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
         if let Some(prefix_fn) = parse_rule.prefix {
             prefix_fn(self, scanner, can_assign);
@@ -283,7 +284,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn init_state(&mut self, function: Function) {
-        let previous = Some(Box::new(self.state.clone()));
+        let previous = Some(self.state.clone());
         let state: CompilerState = CompilerState {
             function,
             previous,
@@ -292,14 +293,15 @@ impl<'a> Compiler<'a> {
             local_count: 0,
             locals: Vec::new(),
         };
-        self.state = state;
+        self.state = Box::new(state);
     }
 
     fn end_state(&mut self) -> Result<Function, CompilerError> {
+        self.emit_opcode(OpCode::Return);
         let previous = self.state.previous.as_ref();
         if let Some(state) = previous {
             let function = self.state.function.clone();
-            self.state = (**state).clone();
+            self.state = (*state).clone();
             Ok(function)
         } else {
             Ok(self.state.function.clone())
@@ -640,13 +642,9 @@ impl<'a> Compiler<'a> {
     fn end_scope(&mut self, scanner: &mut Scanner) {
         self.state.scope_depth -= 1;
 
-        loop {
-            if !(self.local_count() > 0)
-                || self.state.locals.last().unwrap().depth <= self.scope_depth()
-            {
-                break;
-            }
-
+        while self.local_count() > 0
+            || self.state.locals[self.state.local_count - 1].depth > self.scope_depth()
+        {
             self.emit_opcode(OpCode::Pop);
             self.state.local_count -= 1;
         }

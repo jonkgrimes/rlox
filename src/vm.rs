@@ -250,6 +250,8 @@ impl Vm {
                     self.stack[frame.slots + *index] = value.clone();
                 }
                 OpCode::GetLocal(index) => {
+                    self.print_stack();
+                    self.print_globals();
                     let value = self.stack[frame.slots + *index].clone();
                     self.push(value);
                 }
