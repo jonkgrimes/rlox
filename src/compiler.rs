@@ -56,12 +56,11 @@ struct Compiler<'a> {
     current: Option<Token>,
     previous: Option<Token>,
     had_error: bool,
-    state: Box<CompilerState>,
+    state: Vec<CompilerState>,
 }
 
 #[derive(Debug, Clone)]
 struct CompilerState {
-    previous: Option<Box<CompilerState>>,
     function: Function,
     function_type: FunctionType,
     locals: Vec<Local>,
@@ -89,7 +88,6 @@ impl<'a> Compiler<'a> {
     fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
         let state: CompilerState = CompilerState {
             function,
-            previous: None,
             function_type: FunctionType::Script,
             scope_depth: 0,
             local_count: 0,
@@ -101,13 +99,21 @@ impl<'a> Compiler<'a> {
             current: None,
             previous: None,
             had_error: false,
-            state: Box::new(state),
+            state: vec![state],
         }
+    }
+
+    fn state(&self) -> &CompilerState {
+        self.state.last().unwrap()
+    }
+
+    fn state_mut(&mut self) -> &mut CompilerState {
+        self.state.last_mut().unwrap()
     }
 
     fn emit_opcode(&mut self, op_code: OpCode) {
         let line = self.current.as_ref().map_or(1, |t| t.line as u32);
-        self.state.function.chunk.write_chunk(op_code, line);
+        self.state_mut().function.chunk.write_chunk(op_code, line);
     }
 
     fn compile(&mut self, scanner: &mut Scanner) -> Result<Function, CompilerError> {
@@ -124,11 +130,11 @@ impl<'a> Compiler<'a> {
         self.emit_opcode(OpCode::Return);
 
         if self.had_error {
-            self.state.function.chunk.disassemble("Total Chunk")
+            self.state().function.chunk.disassemble("Total Chunk")
         }
 
         if !self.had_error {
-            Ok(self.state.function.clone())
+            Ok(self.state().function.clone())
         } else {
             Err(CompilerError(
                 "There was an error during compilation".to_string(),
@@ -287,25 +293,18 @@ impl<'a> Compiler<'a> {
         let previous = Some(self.state.clone());
         let state: CompilerState = CompilerState {
             function,
-            previous,
             function_type: FunctionType::Function,
             scope_depth: 0,
             local_count: 0,
             locals: Vec::new(),
         };
-        self.state = Box::new(state);
+        self.state.push(state);
     }
 
     fn end_state(&mut self) -> Result<Function, CompilerError> {
         self.emit_opcode(OpCode::Return);
-        let previous = self.state.previous.as_ref();
-        if let Some(state) = previous {
-            let function = self.state.function.clone();
-            self.state = (*state).clone();
-            Ok(function)
-        } else {
-            Ok(self.state.function.clone())
-        }
+        let state = self.state.pop().unwrap();
+        Ok(state.function)
     }
 
     fn function(
@@ -315,7 +314,7 @@ impl<'a> Compiler<'a> {
         constant_index: usize,
     ) {
         let constant = self
-            .state
+            .state()
             .function
             .chunk
             .constants
@@ -367,10 +366,11 @@ impl<'a> Compiler<'a> {
         if self.matches(TokenKind::Equal, scanner) {
             self.expression(scanner);
         } else {
-            self.state
+            let line = self.current.as_ref().unwrap().line as u32;
+            self.state_mut()
                 .function
                 .chunk
-                .write_chunk(OpCode::Nil, self.current.as_ref().unwrap().line as u32);
+                .write_chunk(OpCode::Nil, line);
         }
 
         self.consume(
@@ -383,11 +383,11 @@ impl<'a> Compiler<'a> {
     }
 
     fn scope_depth(&self) -> usize {
-        self.state.scope_depth
+        self.state().scope_depth
     }
 
     fn local_count(&self) -> usize {
-        self.state.local_count
+        self.state().local_count
     }
 
     fn parse_variable(&mut self, error: &str, scanner: &mut Scanner) -> usize {
@@ -408,14 +408,16 @@ impl<'a> Compiler<'a> {
         }
 
         let name = self.previous.as_ref().unwrap().clone();
+        let state = self.state();
 
-        for local in &self.state.locals {
-            if local.depth < self.scope_depth() {
+        for local in &state.locals {
+            if local.depth < state.scope_depth {
                 break;
             }
 
             if local.name == name {
-                self.error_at_current("Variable with this name already declared in this scope.")
+                // TODO: Reimplement
+                // self.error_at_current("Variable with this name already declared in this scope.")
             }
         }
 
@@ -423,10 +425,11 @@ impl<'a> Compiler<'a> {
     }
 
     fn add_local(&mut self, name: Token) {
-        self.state.local_count += 1;
-        self.state.locals.push(Local {
+        let scope_depth = self.scope_depth();
+        self.state_mut().local_count += 1;
+        self.state_mut().locals.push(Local {
             name,
-            depth: self.scope_depth(),
+            depth: scope_depth,
         })
     }
 
@@ -446,14 +449,15 @@ impl<'a> Compiler<'a> {
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
-        self.state.function.chunk.add_constant(constant)
+        self.state_mut().function.chunk.add_constant(constant)
     }
 
     fn mark_initialized(&mut self) {
         if self.scope_depth() == 0 {
             return;
         }
-        self.state.locals[self.state.local_count - 1].depth = self.scope_depth();
+        let local_index = self.state().local_count - 1;
+        self.state_mut().locals[local_index].depth = self.scope_depth();
     }
 
     fn statement(&mut self, scanner: &mut Scanner) {
@@ -505,7 +509,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn while_statement(&mut self, scanner: &mut Scanner) {
-        let loop_start = self.state.function.chunk.code.len();
+        let loop_start = self.state().function.chunk.code.len();
         self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'while'.");
         self.expression(scanner);
 
@@ -539,7 +543,7 @@ impl<'a> Compiler<'a> {
             self.expression_statement(scanner);
         }
 
-        let mut loop_start = self.state.function.chunk.code.len();
+        let mut loop_start = self.state().function.chunk.code.len();
 
         // Condition clause
         let mut exit_jump = None;
@@ -559,7 +563,7 @@ impl<'a> Compiler<'a> {
         if !self.matches(TokenKind::RightParen, scanner) {
             let body_jump = self.emit_jump(OpCode::Jump(0));
 
-            let inc_start = self.state.function.chunk.code.len();
+            let inc_start = self.state().function.chunk.code.len();
 
             self.expression(scanner);
             self.emit_opcode(OpCode::Pop);
@@ -588,15 +592,17 @@ impl<'a> Compiler<'a> {
 
     fn emit_jump(&mut self, op_code: OpCode) -> usize {
         self.emit_opcode(op_code);
-        self.state.function.chunk.code.len() - 1
+        self.state().function.chunk.code.len() - 1
     }
 
     fn patch_jump(&mut self, jmp: usize) {
-        let offset = self.state.function.chunk.code.len() - jmp - 1;
-        match self.state.function.chunk.code.get(jmp) {
-            Some(OpCode::Jump(_)) => self.state.function.chunk.code[jmp] = OpCode::Jump(offset),
+        let offset = self.state().function.chunk.code.len() - jmp - 1;
+        match self.state().function.chunk.code.get(jmp) {
+            Some(OpCode::Jump(_)) => {
+                self.state_mut().function.chunk.code[jmp] = OpCode::Jump(offset)
+            }
             Some(OpCode::JumpIfFalse(_)) => {
-                self.state.function.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
+                self.state_mut().function.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
             }
             _ => {}
         }
@@ -604,8 +610,8 @@ impl<'a> Compiler<'a> {
 
     fn emit_loop(&mut self, loop_start: usize) {
         let line = self.current.as_ref().unwrap().line as u32;
-        let offset = self.state.function.chunk.code.len() - loop_start;
-        self.state
+        let offset = self.state().function.chunk.code.len() - loop_start;
+        self.state_mut()
             .function
             .chunk
             .write_chunk(OpCode::Loop(offset), line);
@@ -618,14 +624,15 @@ impl<'a> Compiler<'a> {
             TokenKind::Semicolon,
             "Expect ';' after expression.",
         );
-        self.state
+        let line = self.current.as_ref().unwrap().line as u32;
+        self.state_mut()
             .function
             .chunk
-            .write_chunk(OpCode::Pop, self.current.as_ref().unwrap().line as u32);
+            .write_chunk(OpCode::Pop, line);
     }
 
     fn begin_scope(&mut self, scanner: &mut Scanner) {
-        self.state.scope_depth += 1;
+        self.state_mut().scope_depth += 1;
     }
 
     fn block(&mut self, scanner: &mut Scanner) {
@@ -640,13 +647,23 @@ impl<'a> Compiler<'a> {
     }
 
     fn end_scope(&mut self, scanner: &mut Scanner) {
-        self.state.scope_depth -= 1;
+        self.state_mut().scope_depth -= 1;
 
-        while self.local_count() > 0
-            || self.state.locals[self.state.local_count - 1].depth > self.scope_depth()
-        {
+        println!("states = {:?}", self.state);
+
+        println!("local_count = {}", self.local_count());
+
+        loop {
+            if self.local_count() == 0
+                || self.local_count().checked_sub(1).map_or(false, |index| {
+                    self.state().locals[index].depth > self.scope_depth()
+                })
+            {
+                break;
+            }
+
             self.emit_opcode(OpCode::Pop);
-            self.state.local_count -= 1;
+            self.state_mut().local_count -= 1;
         }
     }
 
@@ -809,7 +826,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_local(&self, name: &Token) -> Option<usize> {
-        for (i, local) in self.state.locals.iter().enumerate().rev() {
+        let state = self.state();
+        for (i, local) in state.locals.iter().enumerate().rev() {
             if self.identifiers_equal(&local.name, name) {
                 return Some(i);
             }
