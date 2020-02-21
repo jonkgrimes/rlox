@@ -151,4 +151,53 @@ mod tests {
         let result = interpret(&source);
         assert_eq!(result, VmResult::Ok);
     }
+
+    #[test]
+    fn local_scoping() {
+        let source = test_file("test/test-10.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn if_statements() {
+        let source = test_file("test/test-11.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn variables_in_conditionals() {
+        let source = test_file("test/test-12.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn else_statements() {
+        let source = test_file("test/test-13.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn boolean_logic() {
+        let source = test_file("test/test-14.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn while_loop() {
+        let source = test_file("test/test-15.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn for_loop() {
+        let source = test_file("test/test-16.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
 }
