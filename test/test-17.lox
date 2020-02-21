@@ -1,6 +1,6 @@
 fun areWeHavingFunYet() {
   var a = "YES!";
-  return a;
+  print a;
 }
 
 print areWeHavingFunYet;

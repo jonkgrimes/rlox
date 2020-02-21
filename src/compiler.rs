@@ -196,7 +196,7 @@ impl<'a> Compiler<'a> {
         if let Some(prefix_fn) = parse_rule.prefix {
             prefix_fn(self, scanner, can_assign);
         } else {
-            self.error_at_current("Expect expression.");
+            self.error_at_current("Expect expression");
             return ();
         }
 
