@@ -22,43 +22,133 @@ use op_code::OpCode;
 use vm::{Vm, VmResult};
 
 pub fn repl() -> io::Result<()> {
-  let mut rl = Editor::<()>::new();
-  rl.load_history("~/.lox_history").ok();
-  loop {
-    let readline = rl.readline("lox > ");
-    match readline {
-      Ok(line) => {
-        rl.add_history_entry(&line);
-        interpret(&line);
-      }
-      Err(ReadlineError::Interrupted) => {
-        println!("Exiting...");
-        break;
-      }
-      Err(err) => {
-        eprintln!("Unrecoverable error: {:?}", err);
-        break;
-      }
+    let mut rl = Editor::<()>::new();
+    rl.load_history("~/.lox_history").ok();
+    loop {
+        let readline = rl.readline("lox > ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line);
+                interpret(&line);
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("Exiting...");
+                break;
+            }
+            Err(err) => {
+                eprintln!("Unrecoverable error: {:?}", err);
+                break;
+            }
+        }
     }
-  }
 
-  rl.save_history("~/.lox_history").ok();
-  Ok(())
+    rl.save_history("~/.lox_history").ok();
+    Ok(())
 }
 
 pub fn run_file(path: &str) -> io::Result<()> {
-  let file = File::open(path)?;
-  let mut buf_reader = BufReader::new(file);
-  let mut contents = String::new();
-  buf_reader.read_to_string(&mut contents)?;
-  match interpret(&contents) {
-    VmResult::CompileError => std::process::exit(65),
-    VmResult::RuntimeError(_) => std::process::exit(70),
-    VmResult::Ok => std::process::exit(0),
-  }
+    let file = File::open(path)?;
+    let mut buf_reader = BufReader::new(file);
+    let mut contents = String::new();
+    buf_reader.read_to_string(&mut contents)?;
+    match interpret(&contents) {
+        VmResult::CompileError => std::process::exit(65),
+        VmResult::SyntaxError => std::process::exit(65),
+        VmResult::RuntimeError(_) => std::process::exit(70),
+        VmResult::Ok => std::process::exit(0),
+    }
 }
 
 fn interpret(source: &str) -> VmResult {
-  let mut vm = Vm::new();
-  vm.interpret(source)
+    let mut vm = Vm::new();
+    vm.interpret(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_file(path: &str) -> String {
+        let file = File::open(path).ok().expect("Couldn't find test file");
+        let mut buf_reader = BufReader::new(file);
+        let mut source = String::new();
+        buf_reader
+            .read_to_string(&mut source)
+            .ok()
+            .expect("Couldn't read test file");
+        source
+    }
+
+    #[test]
+    fn comments() {
+        let source = test_file("test/test-1.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn printing() {
+        let source = test_file("test/test-2.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn global_variable_assignment() {
+        let source = test_file("test/test-3.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn string_addition() {
+        let source = test_file("test/test-4.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn global_variable_reassignment() {
+        let source = test_file("test/test-5.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn integer_addition() {
+        let source = test_file("test/test-6.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn unlike_types_additon_error() {
+        let source = test_file("test/test-6-error.lox");
+        let result = interpret(&source);
+        assert_eq!(
+            result,
+            VmResult::RuntimeError("Operand must be a number.".to_string())
+        );
+    }
+
+    #[test]
+    fn more_string_concatenation() {
+        let source = test_file("test/test-7.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn operation_ordering_error() {
+        let source = test_file("test/test-8.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn even_more_string_concatenation() {
+        let source = test_file("test/test-9.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
 }

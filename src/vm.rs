@@ -39,8 +39,10 @@ struct CallFrame<'a> {
     slots: usize,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum VmResult {
     Ok,
+    SyntaxError,
     CompileError,
     RuntimeError(String),
 }
