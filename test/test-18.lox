@@ -1,0 +1,5 @@
+fun one(a) {
+  print a;
+}
+
+print one;

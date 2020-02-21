@@ -6,7 +6,7 @@ use crate::chunk::Chunk;
 #[derive(Debug, Clone)]
 pub struct Function {
     name: String,
-    arity: u32,
+    pub arity: u32,
     pub chunk: Chunk,
 }
 
@@ -28,7 +28,8 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<fn {}>", self.name)
+        println!("{:?}", self.chunk);
+        write!(f, "<fn {} airty: {}>", self.name, self.arity)
     }
 }
 

@@ -333,6 +333,23 @@ impl<'a> Compiler<'a> {
             TokenKind::LeftParen,
             "Expect '(' after function name.",
         );
+
+        // Parse parameters
+        if !self.matches(TokenKind::RightParen, scanner) {
+            loop {
+                self.state_mut().function.arity += 1;
+
+                if self.state().function.arity > 255 {
+                    self.error_at_current("Cannot have more than 255 parameters.");
+                }
+                let index = self.parse_variable("Expect parameter name.", scanner);
+                self.define_variable(index);
+                if !self.matches(TokenKind::Comma, scanner) {
+                    break;
+                }
+            }
+        }
+
         self.consume(
             scanner,
             TokenKind::RightParen,
