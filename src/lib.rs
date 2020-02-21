@@ -200,4 +200,11 @@ mod tests {
         let result = interpret(&source);
         assert_eq!(result, VmResult::Ok);
     }
+
+    #[test]
+    fn functions() {
+        let source = test_file("test/test-17.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
 }
