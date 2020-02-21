@@ -32,6 +32,7 @@ pub struct Vm {
     frame_count: usize,
 }
 
+#[derive(Debug)]
 struct CallFrame<'a> {
     function: &'a Function,
     ip: usize,
@@ -252,6 +253,7 @@ impl Vm {
                 OpCode::GetLocal(index) => {
                     self.print_stack();
                     self.print_globals();
+                    self.print_call_frame(frame);
                     let value = self.stack[frame.slots + *index].clone();
                     self.push(value);
                 }
@@ -294,10 +296,15 @@ impl Vm {
     }
 
     fn print_stack(&self) {
-        println!("======= STACK   =======");
+        println!("======== STACK =======");
         for i in 0..self.stack_top {
             println!("[{}]", self.stack[i]);
         }
+    }
+
+    fn print_call_frame(&self, frame: &CallFrame) {
+        println!("======== FRAME =======");
+        println!("{:?}", frame);
     }
 
     fn print_globals(&self) {

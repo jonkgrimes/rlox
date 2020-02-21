@@ -84,7 +84,7 @@ impl<'a> Scanner<'a> {
                 }
             }
             Some("\"") => self.string(),
-            _ => Token::error("Unexpected token.", self.start, self.current, self.line),
+            _ => Token::error("Unexpected token", self.start, self.current, self.line),
         }
     }
 
@@ -150,14 +150,10 @@ impl<'a> Scanner<'a> {
                 }
                 Some("/") => {
                     if self.peek_next() == Some("/") {
-                        loop {
+                        while self.peek() != Some("\n") && !self.at_end() {
                             self.advance();
-                            if self.peek() == Some("\n") && !self.at_end() {
-                                break;
-                            }
                         }
                     }
-                    return;
                 }
                 _ => break,
             }
