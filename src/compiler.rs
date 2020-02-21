@@ -192,7 +192,6 @@ impl<'a> Compiler<'a> {
         self.advance(scanner);
         let can_assign = precedence <= Precedence::Assignment;
 
-        println!("self.previous = {:?}", self.previous);
         let parse_rule = self.get_rule(&self.previous.as_ref().unwrap().kind.clone());
         if let Some(prefix_fn) = parse_rule.prefix {
             prefix_fn(self, scanner, can_assign);
@@ -349,12 +348,10 @@ impl<'a> Compiler<'a> {
 
         match self.end_state() {
             Ok(function) => {
-                println!("function = {:?}", function);
                 let index = self.add_constant(Value::Function(function));
                 self.emit_opcode(OpCode::Constant(index));
             }
             Err(e) => {
-                println!("{}", e);
                 self.error_at_current("There was a problem compiling the function.");
             }
         };
@@ -649,19 +646,9 @@ impl<'a> Compiler<'a> {
     fn end_scope(&mut self, scanner: &mut Scanner) {
         self.state_mut().scope_depth -= 1;
 
-        println!("states = {:?}", self.state);
-
-        println!("local_count = {}", self.local_count());
-
-        loop {
-            if self.local_count() == 0
-                || self.local_count().checked_sub(1).map_or(false, |index| {
-                    self.state().locals[index].depth > self.scope_depth()
-                })
-            {
-                break;
-            }
-
+        while self.local_count() > 0
+            && self.state().locals[self.local_count() - 1].depth > self.scope_depth()
+        {
             self.emit_opcode(OpCode::Pop);
             self.state_mut().local_count -= 1;
         }

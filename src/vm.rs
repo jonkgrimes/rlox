@@ -61,7 +61,6 @@ impl Vm {
         let mut frames: Vec<CallFrame> = Vec::new();
         let function = Function::new("");
         if let Ok(function) = compile(source, function, &mut self.strings) {
-            println!("script function = {:?}", function);
             frames.push(CallFrame {
                 function: &function,
                 ip: 0,
@@ -251,9 +250,6 @@ impl Vm {
                     self.stack[frame.slots + *index] = value.clone();
                 }
                 OpCode::GetLocal(index) => {
-                    self.print_stack();
-                    self.print_globals();
-                    self.print_call_frame(frame);
                     let value = self.stack[frame.slots + *index].clone();
                     self.push(value);
                 }
