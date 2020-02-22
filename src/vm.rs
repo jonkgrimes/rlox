@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::ops::{Index, IndexMut};
 
 use crate::compiler::compile;
 use crate::function::Function;
@@ -24,11 +25,7 @@ macro_rules! bin_op {
 }
 
 pub struct Vm {
-    pub strings: HashSet<String>,
-    pub globals: HashMap<String, Value>,
     ip: usize,
-    stack: Vec<Value>,
-    stack_top: usize,
     frames: Vec<CallFrame>,
     frame_count: usize,
 }
@@ -82,6 +79,20 @@ impl Stack {
     }
 }
 
+impl Index<usize> for Stack {
+    type Output = Value;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.stack[index]
+    }
+}
+
+impl IndexMut<usize> for Stack {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.stack[index]
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum VmResult {
     Ok,
@@ -94,10 +105,6 @@ impl Vm {
     pub fn new() -> Vm {
         Vm {
             ip: 0,
-            strings: HashSet::new(),
-            globals: HashMap::new(),
-            stack: Vec::with_capacity(STACK_MAX),
-            stack_top: 0,
             frames: Vec::new(),
             frame_count: 0,
         }
@@ -105,13 +112,14 @@ impl Vm {
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
         let function = Function::new("");
-        if let Ok(function) = compile(source, function, &mut self.strings) {
+        let mut strings: HashSet<String> = HashSet::new();
+        if let Ok(function) = compile(source, function, &mut strings) {
             self.frames.push(CallFrame {
                 function: function,
                 ip: 0,
-                slots: self.stack_top,
+                slots: 0,
             });
-            self.run()
+            self.run(&mut strings)
         } else {
             return VmResult::CompileError;
         }
@@ -125,7 +133,8 @@ impl Vm {
         self.frames.last().unwrap()
     }
 
-    fn run(&mut self) -> VmResult {
+    fn run(&mut self, strings: &mut HashSet<String>) -> VmResult {
+        let mut globals: HashMap<String, Value> = HashMap::new();
         let mut stack: Stack = Stack::new();
 
         loop {
@@ -134,7 +143,7 @@ impl Vm {
 
             if cfg!(feature = "debug") {
                 stack.print_stack();
-                self.print_globals();
+                self.print_globals(&globals);
                 op_code.disassemble_instruction(&self.frame().function.chunk, ip);
             }
 
@@ -153,7 +162,7 @@ impl Vm {
                                 let mut new_string = String::from(b);
                                 new_string.push_str(&a);
                                 let new_object =
-                                    if let Some(existing_string) = self.strings.get(&new_string) {
+                                    if let Some(existing_string) = strings.get(&new_string) {
                                         existing_string.to_string()
                                     } else {
                                         new_string
@@ -239,7 +248,7 @@ impl Vm {
                         match constant {
                             Value::String(obj) => {
                                 let value = stack.peek(0).clone();
-                                self.globals.insert(obj.clone(), value);
+                                globals.insert(obj.clone(), value);
                                 stack.pop();
                             }
                             _ => {
@@ -255,7 +264,7 @@ impl Vm {
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(s) => {
-                                let value = self.globals.get(s);
+                                let value = globals.get(s);
                                 match value {
                                     Some(value) => stack.push(value.clone()),
                                     _ => {
@@ -279,11 +288,11 @@ impl Vm {
                         match constant {
                             Value::String(s) => {
                                 let value = stack.peek(0).clone();
-                                match self.globals.insert(s.clone(), value) {
+                                match globals.insert(s.clone(), value) {
                                     Some(_) => (),
                                     None => {
                                         let error = format!("Undefined variable '{}'", s);
-                                        self.globals.remove(s);
+                                        globals.remove(s);
                                         break VmResult::RuntimeError(error);
                                     }
                                 }
@@ -299,11 +308,11 @@ impl Vm {
                 OpCode::SetLocal(index) => {
                     let slots = self.frame().slots;
                     let value = stack.peek(0);
-                    self.stack[slots + *index] = value.clone();
+                    stack[slots + *index] = value.clone();
                 }
                 OpCode::GetLocal(index) => {
                     let slots = self.frame().slots;
-                    let value = self.stack[slots + *index].clone();
+                    let value = stack[slots + *index].clone();
                     stack.push(value);
                 }
                 OpCode::JumpIfFalse(offset) => {
@@ -349,9 +358,9 @@ impl Vm {
         println!("{:?}", frame);
     }
 
-    fn print_globals(&self) {
+    fn print_globals(&self, globals: &HashMap<String, Value>) {
         println!("======= GLOBALS =======");
-        for (name, value) in &self.globals {
+        for (name, value) in globals {
             println!("[{} = {}]", name, value);
         }
     }
