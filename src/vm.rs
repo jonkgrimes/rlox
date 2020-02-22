@@ -329,12 +329,12 @@ impl Vm {
                 }
                 OpCode::Call(arg_count) => {
                     let value = stack.peek(*arg_count).clone();
-                    if !self.call_value(value, *arg_count) {
+                    if !self.call_value(stack.top, value, *arg_count) {
                         return VmResult::RuntimeError(
                             "An error occurred calling a function.".to_string(),
                         );
                     }
-                    self.frames.pop();
+                    continue;
                 }
             }
 
@@ -342,15 +342,22 @@ impl Vm {
         }
     }
 
-    fn call_value(&mut self, callee: Value, arg_count: usize) -> bool {
+    fn call_value(&mut self, stack_top: usize, callee: Value, arg_count: usize) -> bool {
         match callee {
-            Value::Function(function) => self.call(function, arg_count),
+            Value::Function(function) => self.call(stack_top, function, arg_count),
             _ => false,
         }
     }
 
-    fn call(&mut self, function: Function, arg_count: usize) -> bool {
-        false
+    fn call(&mut self, stack_top: usize, function: Function, arg_count: usize) -> bool {
+        let frame = CallFrame {
+            function,
+            ip: 0,
+            slots: stack_top - arg_count - 1,
+        };
+        println!("{:?}", frame);
+        self.frames.push(frame);
+        true
     }
 
     fn print_call_frame(&self, frame: &CallFrame) {
