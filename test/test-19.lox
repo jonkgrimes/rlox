@@ -1,0 +1,6 @@
+fun hello(name) {
+  print "Hello " + name;
+}
+
+var a = "World";
+hello(a);
