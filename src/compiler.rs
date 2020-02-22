@@ -221,9 +221,11 @@ impl<'a> Compiler<'a> {
 
     fn get_rule(&mut self, operator: &TokenKind) -> ParseRule {
         match operator {
-            TokenKind::LeftParen => {
-                ParseRule::new(Some(Compiler::grouping), None, Precedence::None)
-            }
+            TokenKind::LeftParen => ParseRule::new(
+                Some(Compiler::grouping),
+                Some(Compiler::call),
+                Precedence::Call,
+            ),
             TokenKind::Minus => ParseRule::new(
                 Some(Compiler::unary),
                 Some(Compiler::binary),
@@ -289,7 +291,6 @@ impl<'a> Compiler<'a> {
     }
 
     fn init_state(&mut self, function: Function) {
-        let previous = Some(self.state.clone());
         let state: CompilerState = CompilerState {
             function,
             function_type: FunctionType::Function,
@@ -769,6 +770,31 @@ impl<'a> Compiler<'a> {
             }
             _ => (),
         }
+    }
+
+    fn call(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+        let arg_count = compiler.argument_list(scanner);
+        compiler.emit_opcode(OpCode::Call(arg_count));
+    }
+
+    fn argument_list(&mut self, scanner: &mut Scanner) -> usize {
+        let mut arg_count = 0;
+
+        if !self.matches(TokenKind::RightParen, scanner) {
+            loop {
+                self.expression(scanner);
+                arg_count += 1;
+                if self.matches(TokenKind::Comma, scanner) {
+                    break;
+                }
+            }
+        }
+        self.consume(
+            scanner,
+            TokenKind::RightParen,
+            "Expect ')' after arguments.",
+        );
+        arg_count
     }
 
     fn and(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {

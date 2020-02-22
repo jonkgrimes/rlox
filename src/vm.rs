@@ -9,14 +9,14 @@ const STACK_MAX: usize = 256;
 const FRAMES_MAX: usize = 64;
 
 macro_rules! bin_op {
-  ( $self:ident, $op:tt ) => {{
-    let a = $self.peek(0);
-    let b = $self.peek(1);
+  ( $stack:ident, $op:tt ) => {{
+    let a = $stack.peek(0);
+    let b = $stack.peek(1);
     if a.is_number() && b.is_number() {
-      let a = $self.pop();
-      let b = $self.pop();
+      let a = $stack.pop();
+      let b = $stack.pop();
       match b $op a {
-        Ok(value) => $self.push(value),
+        Ok(value) => $stack.push(value),
         Err(msg) => break VmResult::RuntimeError(String::from(msg))
       }
     }
@@ -29,14 +29,57 @@ pub struct Vm {
     ip: usize,
     stack: Vec<Value>,
     stack_top: usize,
+    frames: Vec<CallFrame>,
     frame_count: usize,
 }
 
 #[derive(Debug)]
-struct CallFrame<'a> {
-    function: &'a Function,
+struct CallFrame {
+    function: Function,
     ip: usize,
     slots: usize,
+}
+
+#[derive(Debug)]
+struct Stack {
+    top: usize,
+    stack: Vec<Value>,
+}
+
+impl Stack {
+    fn new() -> Stack {
+        Self {
+            top: 0,
+            stack: Vec::with_capacity(STACK_MAX),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.stack.clear();
+        self.top = 0;
+    }
+
+    fn push(&mut self, value: Value) {
+        self.stack.push(value);
+        self.top += 1;
+    }
+
+    fn pop(&mut self) -> Value {
+        self.top -= 1;
+        self.stack.pop().unwrap()
+    }
+
+    fn peek(&self, distance: usize) -> &Value {
+        let peek_index = self.top - distance - 1;
+        &self.stack[peek_index]
+    }
+
+    fn print_stack(&self) {
+        println!("======== STACK =======");
+        for i in 0..self.top {
+            println!("[{}]", self.stack[i]);
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -55,36 +98,44 @@ impl Vm {
             globals: HashMap::new(),
             stack: Vec::with_capacity(STACK_MAX),
             stack_top: 0,
+            frames: Vec::new(),
             frame_count: 0,
         }
     }
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
-        let mut frames: Vec<CallFrame> = Vec::new();
         let function = Function::new("");
         if let Ok(function) = compile(source, function, &mut self.strings) {
-            frames.push(CallFrame {
-                function: &function,
+            self.frames.push(CallFrame {
+                function: function,
                 ip: 0,
                 slots: self.stack_top,
             });
-            self.run(frames)
+            self.run()
         } else {
             return VmResult::CompileError;
         }
     }
 
-    fn run(&mut self, mut frames: Vec<CallFrame>) -> VmResult {
-        let frame = frames.first_mut().unwrap();
-        let chunk = &frame.function.chunk;
+    fn frame_mut(&mut self) -> &mut CallFrame {
+        self.frames.last_mut().unwrap()
+    }
+
+    fn frame(&mut self) -> &CallFrame {
+        self.frames.last().unwrap()
+    }
+
+    fn run(&mut self) -> VmResult {
+        let mut stack: Stack = Stack::new();
 
         loop {
-            let op_code = &chunk.code[frame.ip];
+            let ip = self.frame().ip;
+            let op_code = &self.frame().function.chunk.code[ip].clone();
 
             if cfg!(feature = "debug") {
-                self.print_stack();
+                stack.print_stack();
                 self.print_globals();
-                op_code.disassemble_instruction(&chunk, frame.ip);
+                op_code.disassemble_instruction(&self.frame().function.chunk, ip);
             }
 
             match op_code {
@@ -92,13 +143,13 @@ impl Vm {
                     break VmResult::Ok;
                 }
                 OpCode::Add => {
-                    let a = self.peek(0).clone();
-                    let b = self.peek(1).clone();
+                    let a = stack.peek(0).clone();
+                    let b = stack.peek(1).clone();
                     match a {
                         Value::String(a) => match b {
                             Value::String(b) => {
-                                self.pop();
-                                self.pop();
+                                stack.pop();
+                                stack.pop();
                                 let mut new_string = String::from(b);
                                 new_string.push_str(&a);
                                 let new_object =
@@ -107,7 +158,7 @@ impl Vm {
                                     } else {
                                         new_string
                                     };
-                                self.push(Value::String(new_object));
+                                stack.push(Value::String(new_object));
                             }
                             _ => {
                                 break VmResult::RuntimeError(String::from(
@@ -115,24 +166,24 @@ impl Vm {
                                 ))
                             }
                         },
-                        _ => bin_op!(self, +),
+                        _ => bin_op!(stack, +),
                     }
                 }
                 OpCode::Subtract => {
-                    bin_op!(self, -);
+                    bin_op!(stack, -);
                 }
                 OpCode::Multiply => {
-                    bin_op!(self, *);
+                    bin_op!(stack, *);
                 }
                 OpCode::Divide => {
-                    bin_op!(self, /);
+                    bin_op!(stack, /);
                 }
                 OpCode::Negate => {
-                    let value = self.peek(0);
+                    let value = stack.peek(0);
                     if value.is_number() {
-                        let a = self.pop();
+                        let a = stack.pop();
                         match -a {
-                            Ok(value) => self.push(value),
+                            Ok(value) => stack.push(value),
                             Err(_) => {
                                 break VmResult::RuntimeError(String::from(
                                     "This is unreachable code. How you got here no one knows.",
@@ -144,54 +195,52 @@ impl Vm {
                     }
                 }
                 OpCode::Not => {
-                    let a = self.pop();
-                    self.push(Value::Bool(a.is_falsey()));
+                    let a = stack.pop();
+                    stack.push(Value::Bool(a.is_falsey()));
                 }
                 OpCode::Nil => {
-                    self.push(Value::Nil);
+                    stack.push(Value::Nil);
                 }
                 OpCode::True => {
-                    self.push(Value::Bool(true));
+                    stack.push(Value::Bool(true));
                 }
                 OpCode::False => {
-                    self.push(Value::Bool(false));
+                    stack.push(Value::Bool(false));
                 }
                 OpCode::Equal => {
-                    let a = self.pop();
-                    let b = self.pop();
-                    self.push(Value::Bool(a == b));
+                    let a = stack.pop();
+                    let b = stack.pop();
+                    stack.push(Value::Bool(a == b));
                 }
                 OpCode::Greater => {
-                    let a = self.pop();
-                    let b = self.pop();
-                    self.push(Value::Bool(b > a));
+                    let a = stack.pop();
+                    let b = stack.pop();
+                    stack.push(Value::Bool(b > a));
                 }
                 OpCode::Less => {
-                    let a = self.pop();
-                    let b = self.pop();
-                    self.push(Value::Bool(b < a));
+                    let a = stack.pop();
+                    let b = stack.pop();
+                    stack.push(Value::Bool(b < a));
                 }
                 OpCode::Constant(value) => {
-                    let constant = chunk.constants.get(*value);
-                    if let Some(constant) = constant {
-                        self.push(constant.clone());
-                    }
+                    let constant = self.frame().function.chunk.constants.get(*value).unwrap();
+                    stack.push(constant.clone());
                 }
                 OpCode::Print => {
-                    let value = self.pop();
+                    let value = stack.pop();
                     println!("{}", value);
                 }
                 OpCode::Pop => {
-                    self.pop();
+                    stack.pop();
                 }
                 OpCode::DefineGlobal(index) => {
-                    let constant = chunk.constants.get(*index);
+                    let constant = self.frame().function.chunk.constants.get(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(obj) => {
-                                let value = self.peek(0).clone();
+                                let value = stack.peek(0).clone();
                                 self.globals.insert(obj.clone(), value);
-                                self.pop();
+                                stack.pop();
                             }
                             _ => {
                                 break VmResult::RuntimeError(String::from(
@@ -202,13 +251,13 @@ impl Vm {
                     }
                 }
                 OpCode::GetGlobal(index) => {
-                    let constant = chunk.constants.get(*index);
+                    let constant = self.frame().function.chunk.constants.get(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(s) => {
                                 let value = self.globals.get(s);
                                 match value {
-                                    Some(value) => self.push(value.clone()),
+                                    Some(value) => stack.push(value.clone()),
                                     _ => {
                                         break VmResult::RuntimeError(
                                             "Cannot resolve variable name.".to_string(),
@@ -225,11 +274,11 @@ impl Vm {
                     }
                 }
                 OpCode::SetGlobal(index) => {
-                    let constant = chunk.constants.get(*index);
+                    let constant = self.frame().function.chunk.constants.get(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(s) => {
-                                let value = self.peek(0).clone();
+                                let value = stack.peek(0).clone();
                                 match self.globals.insert(s.clone(), value) {
                                     Some(_) => (),
                                     None => {
@@ -248,56 +297,51 @@ impl Vm {
                     }
                 }
                 OpCode::SetLocal(index) => {
-                    let value = self.peek(0);
-                    self.stack[frame.slots + *index] = value.clone();
+                    let slots = self.frame().slots;
+                    let value = stack.peek(0);
+                    self.stack[slots + *index] = value.clone();
                 }
                 OpCode::GetLocal(index) => {
-                    let value = self.stack[frame.slots + *index].clone();
-                    self.push(value);
+                    let slots = self.frame().slots;
+                    let value = self.stack[slots + *index].clone();
+                    stack.push(value);
                 }
                 OpCode::JumpIfFalse(offset) => {
-                    let value = self.peek(0);
+                    let value = stack.peek(0);
                     if value.is_falsey() {
-                        frame.ip += offset;
+                        self.frame_mut().ip += offset;
                     }
                 }
                 OpCode::Jump(offset) => {
-                    frame.ip += offset;
+                    self.frame_mut().ip += offset;
                 }
                 OpCode::Loop(offset) => {
-                    frame.ip -= offset + 1;
+                    self.frame_mut().ip -= offset + 1;
+                }
+                OpCode::Call(arg_count) => {
+                    let value = stack.peek(*arg_count).clone();
+                    if !self.call_value(value, *arg_count) {
+                        return VmResult::RuntimeError(
+                            "An error occurred calling a function.".to_string(),
+                        );
+                    }
+                    self.frames.pop();
                 }
             }
 
-            frame.ip += 1
+            self.frame_mut().ip += 1
         }
     }
 
-    fn reset_stack(&mut self) {
-        self.stack.clear();
-        self.stack_top = 0;
-    }
-
-    fn push(&mut self, value: Value) {
-        self.stack.push(value);
-        self.stack_top += 1;
-    }
-
-    fn pop(&mut self) -> Value {
-        self.stack_top -= 1;
-        self.stack.pop().unwrap()
-    }
-
-    fn peek(&self, distance: usize) -> &Value {
-        let peek_index = self.stack_top - distance - 1;
-        &self.stack[peek_index]
-    }
-
-    fn print_stack(&self) {
-        println!("======== STACK =======");
-        for i in 0..self.stack_top {
-            println!("[{}]", self.stack[i]);
+    fn call_value(&mut self, callee: Value, arg_count: usize) -> bool {
+        match callee {
+            Value::Function(function) => self.call(function, arg_count),
+            _ => false,
         }
+    }
+
+    fn call(&mut self, function: Function, arg_count: usize) -> bool {
+        false
     }
 
     fn print_call_frame(&self, frame: &CallFrame) {
