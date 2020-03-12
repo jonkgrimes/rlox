@@ -174,7 +174,10 @@ impl<'a> Compiler<'a> {
         print!("[line {}] Error", token.line);
 
         match token.kind {
-            TokenKind::Eof => println!(" at end of line: {}", message),
+            TokenKind::Eof => {
+                println!(" at end of line: {}", message);
+                panic!()
+            }
             TokenKind::Error(error) => println!(": {}: {}", error, message),
             _ => {
                 let range = token.start..(token.start + token.length);
@@ -326,7 +329,7 @@ impl<'a> Compiler<'a> {
         };
         let function = Function::new(&name);
         self.init_state(function);
-        self.begin_scope(scanner);
+        self.begin_scope();
 
         // Compile the parameter list
         self.consume(
@@ -370,7 +373,8 @@ impl<'a> Compiler<'a> {
                 self.emit_opcode(OpCode::Constant(index));
             }
             Err(e) => {
-                self.error_at_current("There was a problem compiling the function.");
+                let message = format!("There was a problem compiling the function {}", e);
+                self.error_at_current(&message);
             }
         };
     }
@@ -485,9 +489,9 @@ impl<'a> Compiler<'a> {
         } else if self.matches(TokenKind::While, scanner) {
             self.while_statement(scanner);
         } else if self.matches(TokenKind::LeftBrace, scanner) {
-            self.begin_scope(scanner);
+            self.begin_scope();
             self.block(scanner);
-            self.end_scope(scanner);
+            self.end_scope();
         } else {
             self.expression_statement(scanner);
         }
@@ -546,7 +550,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn for_statement(&mut self, scanner: &mut Scanner) {
-        self.begin_scope(scanner);
+        self.begin_scope();
 
         // Initializer clause
         self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'for'");
@@ -602,7 +606,7 @@ impl<'a> Compiler<'a> {
             self.emit_opcode(OpCode::Pop);
         }
 
-        self.end_scope(scanner);
+        self.end_scope();
     }
 
     fn emit_jump(&mut self, op_code: OpCode) -> usize {
@@ -646,7 +650,7 @@ impl<'a> Compiler<'a> {
             .write_chunk(OpCode::Pop, line);
     }
 
-    fn begin_scope(&mut self, scanner: &mut Scanner) {
+    fn begin_scope(&mut self) {
         self.state_mut().scope_depth += 1;
     }
 
@@ -661,7 +665,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn end_scope(&mut self, scanner: &mut Scanner) {
+    fn end_scope(&mut self) {
         self.state_mut().scope_depth -= 1;
 
         while self.local_count() > 0
@@ -676,7 +680,7 @@ impl<'a> Compiler<'a> {
         self.parse_precedence(Precedence::Assignment, scanner);
     }
 
-    fn number(compiler: &mut Compiler, scanner: &mut Scanner, _can_assgin: bool) {
+    fn number(compiler: &mut Compiler, _scanner: &mut Scanner, _can_assgin: bool) {
         if let Some(token) = &compiler.previous {
             let source = compiler
                 .source
@@ -694,7 +698,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn string(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+    fn string(compiler: &mut Compiler, _scanner: &mut Scanner, _can_assign: bool) {
         if let Some(token) = &compiler.previous {
             let source = compiler
                 .source
@@ -746,8 +750,6 @@ impl<'a> Compiler<'a> {
         let rule = compiler.get_rule(&operator);
         compiler.parse_precedence(rule.precedence, scanner);
 
-        let line = scanner.line() as u32;
-
         match operator {
             TokenKind::Plus => compiler.emit_opcode(OpCode::Add),
             TokenKind::Minus => compiler.emit_opcode(OpCode::Subtract),
@@ -784,7 +786,7 @@ impl<'a> Compiler<'a> {
             loop {
                 self.expression(scanner);
                 arg_count += 1;
-                if self.matches(TokenKind::Comma, scanner) {
+                if !self.matches(TokenKind::Comma, scanner) {
                     break;
                 }
             }
@@ -833,19 +835,18 @@ impl<'a> Compiler<'a> {
     }
 
     fn named_variable(&mut self, scanner: &mut Scanner, can_assign: bool) {
-        let token = self.previous.as_ref().unwrap();
+        let token = self.previous.clone().unwrap();
         let get_op;
         let set_op;
 
-        if let Some(index) = self.resolve_local(token) {
+        if let Some(index) = self.resolve_local(&token) {
             get_op = OpCode::GetLocal(index);
             set_op = OpCode::SetLocal(index);
         } else {
-            let index = self.identifier_constant(&token.clone());
+            let index = self.identifier_constant(&token);
             get_op = OpCode::GetGlobal(index);
             set_op = OpCode::SetGlobal(index);
         }
-        let line = scanner.line() as u32;
 
         if can_assign && self.matches(TokenKind::Equal, scanner) {
             self.expression(scanner);

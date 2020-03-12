@@ -25,7 +25,6 @@ macro_rules! bin_op {
 }
 
 pub struct Vm {
-    ip: usize,
     frames: Vec<CallFrame>,
     frame_count: usize,
 }
@@ -104,7 +103,6 @@ pub enum VmResult {
 impl Vm {
     pub fn new() -> Vm {
         Vm {
-            ip: 0,
             frames: Vec::new(),
             frame_count: 0,
         }
@@ -136,6 +134,10 @@ impl Vm {
     fn run(&mut self, strings: &mut HashSet<String>) -> VmResult {
         let mut globals: HashMap<String, Value> = HashMap::new();
         let mut stack: Stack = Stack::new();
+
+        if cfg!(feature = "debug") {
+            self.print_iseq();
+        }
 
         loop {
             let ip = self.frame().ip;
@@ -350,12 +352,26 @@ impl Vm {
     }
 
     fn call(&mut self, stack_top: usize, function: Function, arg_count: usize) -> bool {
+        let arity = self.frame().function.arity;
+        if arg_count != arity {
+            VmResult::RuntimeError(format!(
+                "Expected {} arguments but received {}",
+                arity, arg_count
+            ));
+        }
+
+        if self.frames.len() > FRAMES_MAX {
+            return false;
+        }
+
         let frame = CallFrame {
             function,
             ip: 0,
             slots: stack_top - arg_count - 1,
         };
-        println!("{:?}", frame);
+
+        self.print_call_frame(&frame);
+
         self.frames.push(frame);
         true
     }
@@ -370,5 +386,9 @@ impl Vm {
         for (name, value) in globals {
             println!("[{} = {}]", name, value);
         }
+    }
+
+    fn print_iseq(&mut self) {
+        self.frame_mut().function.disassemble();
     }
 }

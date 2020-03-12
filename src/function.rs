@@ -6,7 +6,7 @@ use crate::chunk::Chunk;
 #[derive(Debug, Clone)]
 pub struct Function {
     name: String,
-    pub arity: u32,
+    pub arity: usize,
     pub chunk: Chunk,
 }
 
@@ -23,6 +23,14 @@ impl Function {
             arity: 0,
             chunk: Chunk::new(),
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn disassemble(&self) {
+        self.chunk.disassemble(&self.name)
     }
 }
 

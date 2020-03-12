@@ -11,7 +11,6 @@ use rustyline::Editor;
 mod chunk;
 mod compiler;
 mod function;
-mod object;
 mod op_code;
 mod scanner;
 mod token;
