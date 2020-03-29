@@ -36,7 +36,6 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        println!("{:?}", self.chunk);
         write!(f, "<fn {} airty: {}>", self.name, self.arity)
     }
 }

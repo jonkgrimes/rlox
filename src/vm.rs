@@ -352,7 +352,7 @@ impl Vm {
     }
 
     fn call(&mut self, stack_top: usize, function: Function, arg_count: usize) -> bool {
-        let arity = self.frame().function.arity;
+        let arity = function.arity;
         if arg_count != arity {
             VmResult::RuntimeError(format!(
                 "Expected {} arguments but received {}",
@@ -367,10 +367,8 @@ impl Vm {
         let frame = CallFrame {
             function,
             ip: 0,
-            slots: stack_top - arg_count - 1,
+            slots: stack_top - arg_count,
         };
-
-        self.print_call_frame(&frame);
 
         self.frames.push(frame);
         true
