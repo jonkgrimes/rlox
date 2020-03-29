@@ -25,10 +25,6 @@ impl Function {
         }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub fn disassemble(&self) {
         self.chunk.disassemble(&self.name)
     }

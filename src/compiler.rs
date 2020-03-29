@@ -490,6 +490,8 @@ impl<'a> Compiler<'a> {
             self.if_statement(scanner);
         } else if self.matches(TokenKind::While, scanner) {
             self.while_statement(scanner);
+        } else if self.matches(TokenKind::Return, scanner) {
+            self.return_statement(scanner);
         } else if self.matches(TokenKind::LeftBrace, scanner) {
             self.begin_scope();
             self.block(scanner);
@@ -527,6 +529,21 @@ impl<'a> Compiler<'a> {
             self.statement(scanner);
         }
         self.patch_jump(else_jmp);
+    }
+
+    fn return_statement(&mut self, scanner: &mut Scanner) {
+        if self.matches(TokenKind::Semicolon, scanner) {
+            self.emit_opcode(OpCode::Nil);
+            self.emit_opcode(OpCode::Return);
+        } else {
+            self.expression(scanner);
+            self.consume(
+                scanner,
+                TokenKind::Semicolon,
+                "Expect a ';' after a return value.",
+            );
+            self.emit_opcode(OpCode::Return);
+        }
     }
 
     fn while_statement(&mut self, scanner: &mut Scanner) {
