@@ -1,0 +1,8 @@
+fun add_one(n) {
+  return n + 1;
+}
+
+var a = 1;
+var b = add_one(a);
+
+print b;
