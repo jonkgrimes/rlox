@@ -220,4 +220,11 @@ mod tests {
         let result = interpret(&source);
         assert_eq!(result, VmResult::Ok);
     }
+
+    #[test]
+    fn multiple_calls() {
+        let source = test_file("test/test-20.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
 }

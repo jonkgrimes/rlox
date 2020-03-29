@@ -127,6 +127,7 @@ impl<'a> Compiler<'a> {
         }
 
         // emit return
+        self.emit_opcode(OpCode::Nil);
         self.emit_opcode(OpCode::Return);
 
         if self.had_error {
@@ -305,6 +306,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn end_state(&mut self) -> Result<Function, CompilerError> {
+        self.emit_opcode(OpCode::Nil);
         self.emit_opcode(OpCode::Return);
         let state = self.state.pop().unwrap();
         Ok(state.function)

@@ -338,7 +338,6 @@ impl Vm {
                 OpCode::Return => {
                     let value = stack.pop();
                     if self.frames.len() == 1 {
-                        stack.pop();
                         break VmResult::Ok;
                     }
 
