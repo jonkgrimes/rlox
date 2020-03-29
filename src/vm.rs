@@ -150,9 +150,6 @@ impl Vm {
             }
 
             match op_code {
-                OpCode::Return => {
-                    break VmResult::Ok;
-                }
                 OpCode::Add => {
                     let a = stack.peek(0).clone();
                     let b = stack.peek(1).clone();
@@ -337,6 +334,17 @@ impl Vm {
                         );
                     }
                     continue;
+                }
+                OpCode::Return => {
+                    let value = stack.pop();
+                    if self.frames.len() == 1 {
+                        stack.pop();
+                        break VmResult::Ok;
+                    }
+
+                    stack.push(value);
+
+                    self.frames.pop();
                 }
             }
 
