@@ -11,6 +11,7 @@ use rustyline::Editor;
 mod chunk;
 mod compiler;
 mod function;
+mod native_function;
 mod op_code;
 mod scanner;
 mod token;
@@ -231,6 +232,13 @@ mod tests {
     #[test]
     fn returning_values() {
         let source = test_file("test/test-21.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
+
+    #[test]
+    fn stack_trace() {
+        let source = test_file("test/test-22.lox");
         let result = interpret(&source);
         assert_eq!(result, VmResult::Ok);
     }

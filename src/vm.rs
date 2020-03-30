@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::{Index, IndexMut};
+use std::time::SystemTime;
 
 use crate::compiler::compile;
 use crate::function::Function;
+use crate::native_function::NativeFunction;
 use crate::value::Value;
 use crate::OpCode;
 
@@ -109,7 +111,7 @@ impl Vm {
     }
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
-        let function = Function::new("");
+        let function = Function::new("Script");
         let mut strings: HashSet<String> = HashSet::new();
         if let Ok(function) = compile(source, function, &mut strings) {
             self.frames.push(CallFrame {
@@ -133,6 +135,9 @@ impl Vm {
 
     fn run(&mut self, strings: &mut HashSet<String>) -> VmResult {
         let mut globals: HashMap<String, Value> = HashMap::new();
+        let clock = clock();
+        globals.insert("clock".to_string(), Value::NativeFunction(clock));
+
         let mut stack: Stack = Stack::new();
 
         if cfg!(feature = "debug") {
@@ -328,12 +333,11 @@ impl Vm {
                 }
                 OpCode::Call(arg_count) => {
                     let value = stack.peek(*arg_count).clone();
-                    if !self.call_value(stack.top, value, *arg_count) {
+                    if !self.call_value(&mut stack, value, *arg_count) {
                         return VmResult::RuntimeError(
                             "An error occurred calling a function.".to_string(),
                         );
                     }
-                    continue;
                 }
                 OpCode::Return => {
                     let value = stack.pop();
@@ -351,9 +355,15 @@ impl Vm {
         }
     }
 
-    fn call_value(&mut self, stack_top: usize, callee: Value, arg_count: usize) -> bool {
+    fn call_value(&mut self, stack: &mut Stack, callee: Value, arg_count: usize) -> bool {
         match callee {
-            Value::Function(function) => self.call(stack_top, function, arg_count),
+            Value::Function(function) => self.call(stack.top, function, arg_count),
+            Value::NativeFunction(function) => {
+                let result = (function.function)();
+                stack.pop();
+                stack.push(result);
+                true
+            }
             _ => false,
         }
     }
@@ -395,5 +405,16 @@ impl Vm {
 
     fn print_iseq(&mut self) {
         self.frame_mut().function.disassemble();
+    }
+}
+
+fn clock() -> NativeFunction {
+    let closure = || match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(n) => Value::Number(n.as_secs() as f32),
+        _ => Value::Number(0f32),
+    };
+    NativeFunction {
+        name: "clock".to_string(),
+        function: closure,
     }
 }

@@ -1,0 +1,15 @@
+var start = clock();
+
+fun print_n_times(n, word) {
+  for (var i = 0; i < n; i = i + 1) {
+    print word; 
+  }
+}
+
+print_n_times(10, "Hello");
+
+print_n_times(5, "Echo...");
+
+var end = clock();
+
+print end - start;
