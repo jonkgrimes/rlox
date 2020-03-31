@@ -388,6 +388,11 @@ impl Vm {
         };
 
         self.frames.push(frame);
+
+        if cfg!(feature = "debug") {
+            self.print_iseq()
+        }
+
         true
     }
 
