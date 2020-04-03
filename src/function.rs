@@ -10,10 +10,11 @@ pub struct Function {
     pub chunk: Chunk,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
     Script,
     Function,
+    Native,
 }
 
 impl Function {

@@ -3,7 +3,7 @@ use std::ops::{Index, IndexMut};
 use std::time::SystemTime;
 
 use crate::compiler::compile;
-use crate::function::Function;
+use crate::function::{Function, FunctionType};
 use crate::native_function::NativeFunction;
 use crate::value::Value;
 use crate::OpCode;
@@ -135,6 +135,7 @@ impl Vm {
 
     fn run(&mut self, strings: &mut HashSet<String>) -> VmResult {
         let mut globals: HashMap<String, Value> = HashMap::new();
+        // Define native functions here
         let clock = clock();
         globals.insert("clock".to_string(), Value::NativeFunction(clock));
 
@@ -333,10 +334,15 @@ impl Vm {
                 }
                 OpCode::Call(arg_count) => {
                     let value = stack.peek(*arg_count).clone();
-                    if !self.call_value(&mut stack, value, *arg_count) {
+                    let (result, function_type) = self.call_value(&mut stack, value, *arg_count);
+                    if !result {
                         return VmResult::RuntimeError(
                             "An error occurred calling a function.".to_string(),
                         );
+                    } else {
+                        if function_type == FunctionType::Function {
+                            continue;
+                        }
                     }
                 }
                 OpCode::Return => {
@@ -355,16 +361,26 @@ impl Vm {
         }
     }
 
-    fn call_value(&mut self, stack: &mut Stack, callee: Value, arg_count: usize) -> bool {
+    fn call_value(
+        &mut self,
+        stack: &mut Stack,
+        callee: Value,
+        arg_count: usize,
+    ) -> (bool, FunctionType) {
+        dbg!(stack.top);
+        dbg!(arg_count);
         match callee {
-            Value::Function(function) => self.call(stack.top, function, arg_count),
+            Value::Function(function) => (
+                self.call(stack.top, function, arg_count),
+                FunctionType::Function,
+            ),
             Value::NativeFunction(function) => {
                 let result = (function.function)();
                 stack.pop();
                 stack.push(result);
-                true
+                (true, FunctionType::Native)
             }
-            _ => false,
+            _ => (false, FunctionType::Script),
         }
     }
 
@@ -390,15 +406,16 @@ impl Vm {
         self.frames.push(frame);
 
         if cfg!(feature = "debug") {
-            self.print_iseq()
+            self.print_call_frame();
+            self.print_iseq();
         }
 
         true
     }
 
-    fn print_call_frame(&self, frame: &CallFrame) {
+    fn print_call_frame(&mut self) {
         println!("======== FRAME =======");
-        println!("{:?}", frame);
+        println!("{:?}", self.frame());
     }
 
     fn print_globals(&self, globals: &HashMap<String, Value>) {
