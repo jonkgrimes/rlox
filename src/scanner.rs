@@ -215,7 +215,7 @@ impl<'a> Scanner<'a> {
                         Some("a") => self.check_keyword(3, 3, "lse", TokenKind::False),
                         Some("o") => self.check_keyword(1, 1, "r", TokenKind::For),
                         Some("u") => self.check_keyword(1, 1, "n", TokenKind::Fun),
-                        _ => TokenKind::Error("Unexpected character".to_string()),
+                        _ => TokenKind::Identifier,
                     }
                 } else {
                     TokenKind::Error("Unexpected character".to_string())
@@ -247,12 +247,12 @@ impl<'a> Scanner<'a> {
 
     fn check_keyword(
         &mut self,
-        start: usize,
+        offset: usize,
         length: usize,
         rest: &str,
         kind: TokenKind,
     ) -> TokenKind {
-        let start = self.current - start;
+        let start = self.current - offset;
         let range = start..(start + length);
         let source = self.source.get(range);
         if source == Some(rest) {
