@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::{Index, IndexMut};
 use std::time::SystemTime;
+use std::vec::Drain;
+use std::ops::RangeBounds;
 
 use crate::compiler::compile;
 use crate::function::{Function, FunctionType};
@@ -70,6 +72,14 @@ impl Stack {
     fn peek(&self, distance: usize) -> &Value {
         let peek_index = self.top - distance - 1;
         &self.stack[peek_index]
+    }
+
+    fn drain<R>(&mut self, range: R) -> Drain<'_, Value>
+    where
+        R: RangeBounds<usize>,
+    {
+        let result = self.stack.drain(range);
+        result
     }
 
     fn print_stack(&self) {
@@ -351,6 +361,12 @@ impl Vm {
                         break VmResult::Ok;
                     }
 
+                    // Need to reset the stack
+                    let top = stack.top;
+                    let offset = (top - self.frame().slots) + 1;
+                    stack.drain((self.frame().slots - 1)..top);
+                    stack.top -= offset;
+
                     stack.push(value);
 
                     self.frames.pop();
@@ -367,8 +383,6 @@ impl Vm {
         callee: Value,
         arg_count: usize,
     ) -> (bool, FunctionType) {
-        dbg!(stack.top);
-        dbg!(arg_count);
         match callee {
             Value::Function(function) => (
                 self.call(stack.top, function, arg_count),
