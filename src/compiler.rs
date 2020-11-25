@@ -3,6 +3,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::function::{Function, FunctionType};
+use crate::closure::{Closure};
 use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
@@ -372,7 +373,7 @@ impl<'a> Compiler<'a> {
         match self.end_state() {
             Ok(function) => {
                 let index = self.add_constant(Value::Function(function));
-                self.emit_opcode(OpCode::Constant(index));
+                self.emit_opcode(OpCode::Closure(index));
             }
             Err(e) => {
                 let message = format!("There was a problem compiling the function {}", e);

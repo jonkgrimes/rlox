@@ -27,6 +27,7 @@ pub enum OpCode {
     Jump(usize),
     Loop(usize),
     Call(usize),
+    Closure(usize),
 }
 
 impl OpCode {
@@ -91,6 +92,11 @@ impl OpCode {
             OpCode::Jump(jmp) => println!("{} Jump offset {}", prefix, jmp),
             OpCode::Loop(jmp) => println!("{} Loop offset {}", prefix, jmp),
             OpCode::Call(arg_count) => println!("{} Call arg_count {}", prefix, arg_count),
+            OpCode::Closure(index) => {
+                if let Some(constant) = chunk.constants.get(*index) {
+                    println!("{} Closure\t{} '{}'", prefix, index, constant);
+                }
+            } 
         }
     }
 }

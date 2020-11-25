@@ -12,6 +12,7 @@ mod chunk;
 mod compiler;
 mod function;
 mod native_function;
+mod closure;
 mod op_code;
 mod scanner;
 mod token;

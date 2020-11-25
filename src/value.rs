@@ -2,6 +2,7 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::function::Function;
+use crate::closure::Closure;
 use crate::native_function::NativeFunction;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -12,6 +13,7 @@ pub enum Value {
     String(String),
     Function(Function),
     NativeFunction(NativeFunction),
+    Closure(Closure)
 }
 
 impl Value {
@@ -54,6 +56,7 @@ impl fmt::Display for Value {
             Value::String(value) => write!(f, "{}", *value),
             Value::Function(function) => write!(f, "{}", function),
             Value::NativeFunction(function) => write!(f, "{}", function),
+            Value::Closure(closure) => write!(f, "{}", closure),
         }
     }
 }

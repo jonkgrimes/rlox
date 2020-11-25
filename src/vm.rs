@@ -6,8 +6,10 @@ use std::ops::RangeBounds;
 
 use crate::compiler::compile;
 use crate::function::{Function, FunctionType};
+use crate::closure::Closure;
 use crate::native_function::NativeFunction;
 use crate::value::Value;
+use crate::chunk::Chunk;
 use crate::OpCode;
 
 const STACK_MAX: usize = 256;
@@ -35,9 +37,23 @@ pub struct Vm {
 
 #[derive(Debug)]
 struct CallFrame {
-    function: Function,
+    closure: Closure,
     ip: usize,
     slots: usize,
+}
+
+impl CallFrame {
+    fn code_at(&self, index: usize) -> &OpCode {
+        &self.closure.function.chunk.code[index]
+    }
+
+    fn chunk(&self) -> &Chunk {
+        &self.closure.function.chunk
+    }
+
+    fn get_constant(&self, index: usize) -> Option<&Value> {
+        self.closure.function.chunk.constants.get(index)
+    }
 }
 
 #[derive(Debug)]
@@ -124,8 +140,9 @@ impl Vm {
         let function = Function::new("Script");
         let mut strings: HashSet<String> = HashSet::new();
         if let Ok(function) = compile(source, function, &mut strings) {
+            let closure = Closure::new(function);
             self.frames.push(CallFrame {
-                function: function,
+                closure,
                 ip: 0,
                 slots: 0,
             });
@@ -157,12 +174,12 @@ impl Vm {
 
         loop {
             let ip = self.frame().ip;
-            let op_code = &self.frame().function.chunk.code[ip].clone();
+            let op_code = &self.frame().code_at(ip).clone();
 
             if cfg!(feature = "debug") {
                 stack.print_stack();
                 self.print_globals(&globals);
-                op_code.disassemble_instruction(&self.frame().function.chunk, ip);
+                op_code.disassemble_instruction(&self.frame().chunk(), ip);
             }
 
             match op_code {
@@ -246,8 +263,8 @@ impl Vm {
                     let b = stack.pop();
                     stack.push(Value::Bool(b < a));
                 }
-                OpCode::Constant(value) => {
-                    let constant = self.frame().function.chunk.constants.get(*value).unwrap();
+                OpCode::Constant(index) => {
+                    let constant = self.frame().get_constant(*index).unwrap();
                     stack.push(constant.clone());
                 }
                 OpCode::Print => {
@@ -258,7 +275,7 @@ impl Vm {
                     stack.pop();
                 }
                 OpCode::DefineGlobal(index) => {
-                    let constant = self.frame().function.chunk.constants.get(*index);
+                    let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(obj) => {
@@ -275,7 +292,7 @@ impl Vm {
                     }
                 }
                 OpCode::GetGlobal(index) => {
-                    let constant = self.frame().function.chunk.constants.get(*index);
+                    let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(s) => {
@@ -298,7 +315,7 @@ impl Vm {
                     }
                 }
                 OpCode::SetGlobal(index) => {
-                    let constant = self.frame().function.chunk.constants.get(*index);
+                    let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
                             Value::String(s) => {
@@ -355,20 +372,37 @@ impl Vm {
                         }
                     }
                 }
+                OpCode::Closure(index) => {
+                    let constant = self.frame().get_constant(*index).unwrap();
+                    match constant {
+                        Value::Function(function) => {
+                            let closure = Closure::new(function.clone());
+                            stack.push(Value::Closure(closure));
+                        },
+                        _ => panic!("Received a value that was not a function!")
+                    }
+                }
                 OpCode::Return => {
+                    // Get the return value and store temporarily
                     let value = stack.pop();
+                    // if we only have one frame, it's the top level script
                     if self.frames.len() == 1 {
                         break VmResult::Ok;
                     }
 
                     // Need to reset the stack
                     let top = stack.top;
+                    // Count number of slots and function
                     let offset = (top - self.frame().slots) + 1;
+                    // Drop the references to the slots and function call
                     stack.drain((self.frame().slots - 1)..top);
+                    // Set the stack top
                     stack.top -= offset;
 
+                    // Push return of function back onto the stack
                     stack.push(value);
 
+                    // Remove the call frame 
                     self.frames.pop();
                 }
             }
@@ -384,8 +418,8 @@ impl Vm {
         arg_count: usize,
     ) -> (bool, FunctionType) {
         match callee {
-            Value::Function(function) => (
-                self.call(stack.top, function, arg_count),
+            Value::Closure(closure) => (
+                self.call(stack.top, closure, arg_count),
                 FunctionType::Function,
             ),
             Value::NativeFunction(function) => {
@@ -398,8 +432,8 @@ impl Vm {
         }
     }
 
-    fn call(&mut self, stack_top: usize, function: Function, arg_count: usize) -> bool {
-        let arity = function.arity;
+    fn call(&mut self, stack_top: usize, closure: Closure, arg_count: usize) -> bool {
+        let arity = closure.function.arity;
         if arg_count != arity {
             VmResult::RuntimeError(format!(
                 "Expected {} arguments but received {}",
@@ -412,7 +446,7 @@ impl Vm {
         }
 
         let frame = CallFrame {
-            function,
+            closure,
             ip: 0,
             slots: stack_top - arg_count,
         };
@@ -440,7 +474,7 @@ impl Vm {
     }
 
     fn print_iseq(&mut self) {
-        self.frame_mut().function.disassemble();
+        self.frame_mut().closure.function.disassemble();
     }
 }
 
