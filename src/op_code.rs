@@ -23,15 +23,19 @@ pub enum OpCode {
     SetGlobal(usize),
     GetLocal(usize),
     SetLocal(usize),
+    GetUpvalue(usize),
+    SetUpvalue(usize),
     JumpIfFalse(usize),
     Jump(usize),
     Loop(usize),
     Call(usize),
     Closure(usize),
+    LocalValue(usize),
+    Upvalue(usize)
 }
 
 impl OpCode {
-    pub fn disassemble_instruction(&self, chunk: &Chunk, offset: usize) {
+    pub fn disassemble_instruction(op_code: &OpCode, chunk: &Chunk, offset: usize) {
         let mut prefix = format!("{:04}\t", offset);
         let line_number = match chunk.lines.get(offset) {
             Some(line) => {
@@ -46,7 +50,7 @@ impl OpCode {
             }
         };
         prefix.push_str(&line_number);
-        match self {
+        match op_code {
             OpCode::Return => println!("{} Return", prefix),
             OpCode::Add => println!("{} Add\t", prefix),
             OpCode::Subtract => println!("{} Subtract\t", prefix),
@@ -88,6 +92,12 @@ impl OpCode {
             OpCode::GetLocal(index) => {
                 println!("{} GetLocal\t{}", prefix, index);
             }
+            OpCode::GetUpvalue(index) => {
+                println!("{} SetLocal\t{}", prefix, index);
+            }
+            OpCode::SetUpvalue(index) => {
+                println!("{} GetLocal\t{}", prefix, index);
+            }
             OpCode::JumpIfFalse(jmp) => println!("{} JumpIfFalse offset {}", prefix, jmp),
             OpCode::Jump(jmp) => println!("{} Jump offset {}", prefix, jmp),
             OpCode::Loop(jmp) => println!("{} Loop offset {}", prefix, jmp),
@@ -97,6 +107,12 @@ impl OpCode {
                     println!("{} Closure\t{} '{}'", prefix, index, constant);
                 }
             } 
+            OpCode::LocalValue(index) => {
+                println!("{} Local value {}", prefix, index)
+            }
+            OpCode::Upvalue(index) => {
+                println!("{} Upvalue {}", prefix, index)
+            }
         }
     }
 }

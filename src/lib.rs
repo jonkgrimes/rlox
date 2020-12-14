@@ -18,6 +18,7 @@ mod scanner;
 mod token;
 mod value;
 mod vm;
+mod upvalue;
 
 use op_code::OpCode;
 use vm::{Vm, VmResult};

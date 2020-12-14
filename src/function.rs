@@ -2,12 +2,14 @@ use std::cmp::Ordering;
 use std::fmt;
 
 use crate::chunk::Chunk;
+use crate::upvalue::Upvalue;
 
 #[derive(Debug, Clone)]
 pub struct Function {
     name: String,
     pub arity: usize,
     pub chunk: Chunk,
+    pub upvalues: Vec<Upvalue>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +25,7 @@ impl Function {
             name: String::from(name),
             arity: 0,
             chunk: Chunk::new(),
+            upvalues: Vec::new()
         }
     }
 

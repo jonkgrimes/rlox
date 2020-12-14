@@ -2,12 +2,13 @@ use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 
+use crate::closure::Closure;
 use crate::function::{Function, FunctionType};
-use crate::closure::{Closure};
 use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
 use crate::value::Value;
+use crate::upvalue::Upvalue;
 
 #[derive(Debug)]
 pub struct CompilerError(String);
@@ -64,9 +65,12 @@ struct Compiler<'a> {
 struct CompilerState {
     function: Function,
     function_type: FunctionType,
+    enclosing: Option<usize>,
+    scope_depth: usize,
     locals: Vec<Local>,
     local_count: usize,
-    scope_depth: usize,
+    upvalues: Vec<Upvalue>,
+    upvalue_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -90,9 +94,12 @@ impl<'a> Compiler<'a> {
         let state: CompilerState = CompilerState {
             function,
             function_type: FunctionType::Script,
+            enclosing: None,
             scope_depth: 0,
             local_count: 0,
             locals: Vec::new(),
+            upvalue_count: 0,
+            upvalues: Vec::new(),
         };
         Compiler {
             source,
@@ -106,6 +113,10 @@ impl<'a> Compiler<'a> {
 
     fn state(&self) -> &CompilerState {
         self.state.last().unwrap()
+    }
+
+    fn current_state_index(&self) -> usize {
+        self.state.len() - 1
     }
 
     fn state_mut(&mut self) -> &mut CompilerState {
@@ -296,12 +307,16 @@ impl<'a> Compiler<'a> {
     }
 
     fn init_state(&mut self, function: Function) {
+        let enclosing = Some(self.state.len());
         let state: CompilerState = CompilerState {
             function,
             function_type: FunctionType::Function,
+            enclosing,
             scope_depth: 0,
             local_count: 0,
             locals: Vec::new(),
+            upvalue_count: 0,
+            upvalues: Vec::new(),
         };
         self.state.push(state);
     }
@@ -372,8 +387,17 @@ impl<'a> Compiler<'a> {
 
         match self.end_state() {
             Ok(function) => {
+                let upvalues = function.upvalues.clone();
                 let index = self.add_constant(Value::Function(function));
                 self.emit_opcode(OpCode::Closure(index));
+
+                for upvalue in upvalues {
+                    if upvalue.local {
+                      self.emit_opcode(OpCode::LocalValue(upvalue.index))
+                    } else {
+                      self.emit_opcode(OpCode::Upvalue(upvalue.index))
+                    }
+                }
             }
             Err(e) => {
                 let message = format!("There was a problem compiling the function {}", e);
@@ -859,9 +883,12 @@ impl<'a> Compiler<'a> {
         let get_op;
         let set_op;
 
-        if let Some(index) = self.resolve_local(&token) {
+        if let Some(index) = self.resolve_local(self.state(), &token) {
             get_op = OpCode::GetLocal(index);
             set_op = OpCode::SetLocal(index);
+        } else if let Some(index) = self.resolve_upvalue(self.current_state_index() ,&token) {
+            get_op = OpCode::GetUpvalue(index);
+            set_op = OpCode::SetUpvalue(index);
         } else {
             let index = self.identifier_constant(&token);
             get_op = OpCode::GetGlobal(index);
@@ -876,7 +903,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn resolve_local(&self, name: &Token) -> Option<usize> {
+    fn resolve_local(&self, state: &CompilerState, name: &Token) -> Option<usize> {
         let state = self.state();
         for (i, local) in state.locals.iter().enumerate().rev() {
             if self.identifiers_equal(&local.name, name) {
@@ -884,6 +911,26 @@ impl<'a> Compiler<'a> {
             }
         }
         None
+    }
+
+    fn resolve_upvalue(&mut self, state_idx: usize, name: &Token) -> Option<usize> {
+        if let Some(state) = self.state.get(state_idx) {
+            if let Some(enclosing_idx) = state.enclosing {
+                if let Some(index) = self.resolve_upvalue(enclosing_idx - 1, name) {
+                    return Self::add_upvalue(self.state_mut(), index, true);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn add_upvalue(state: &mut CompilerState, index: usize, local: bool) -> Option<usize> {
+        if state.upvalues.iter().any(|upvalue| upvalue.index == index) {
+            return Some(state.upvalues.len())
+        }
+        state.upvalues.push( Upvalue { local, index });
+        Some(state.upvalues.len())
     }
 
     fn identifiers_equal(&self, lhs: &Token, rhs: &Token) -> bool {

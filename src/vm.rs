@@ -179,7 +179,7 @@ impl Vm {
             if cfg!(feature = "debug") {
                 stack.print_stack();
                 self.print_globals(&globals);
-                op_code.disassemble_instruction(&self.frame().chunk(), ip);
+                OpCode::disassemble_instruction(op_code, &self.frame().chunk(), ip);
             }
 
             match op_code {
@@ -347,6 +347,16 @@ impl Vm {
                     let value = stack[slots + *index].clone();
                     stack.push(value);
                 }
+                OpCode::SetUpvalue(index) => {
+                    let slots = self.frame().slots;
+                    let value = stack.peek(0);
+                    stack[slots + *index] = value.clone();
+                }
+                OpCode::GetUpvalue(index) => {
+                    let slots = self.frame().slots;
+                    let value = stack[slots + *index].clone();
+                    stack.push(value);
+                }
                 OpCode::JumpIfFalse(offset) => {
                     let value = stack.peek(0);
                     if value.is_falsey() {
@@ -381,6 +391,12 @@ impl Vm {
                         },
                         _ => panic!("Received a value that was not a function!")
                     }
+                }
+                OpCode::LocalValue(_) => {
+                    panic!("Local value opcode was attempted to be executed")
+                }
+                OpCode::Upvalue(_) => {
+                    panic!("Upvalue opcode was attempted to be executed")
                 }
                 OpCode::Return => {
                     // Get the return value and store temporarily

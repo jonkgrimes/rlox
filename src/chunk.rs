@@ -30,7 +30,7 @@ impl Chunk {
   pub fn disassemble(&self, name: &str) {
     println!("==== {} ====", name);
     for (offset, op_code) in self.code.iter().enumerate() {
-      op_code.disassemble_instruction(self, offset);
+      OpCode::disassemble_instruction(op_code, self, offset);
     }
   }
 }
