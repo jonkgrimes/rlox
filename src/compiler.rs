@@ -307,7 +307,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn init_state(&mut self, function: Function) {
-        let enclosing = Some(self.state.len());
+        let enclosing = Some(self.state.len() - 1);
         let state: CompilerState = CompilerState {
             function,
             function_type: FunctionType::Function,
@@ -334,6 +334,8 @@ impl<'a> Compiler<'a> {
         function_type: FunctionType,
         constant_index: usize,
     ) {
+        dbg!(constant_index);
+        dbg!(self.state());
         let constant = self
             .state()
             .function
@@ -345,7 +347,7 @@ impl<'a> Compiler<'a> {
             Value::String(string) => string,
             _ => "Undefined",
         };
-        let function = Function::new(&name);
+        let function = Function::new(&name, function_type);
         self.init_state(function);
         self.begin_scope();
 
@@ -437,14 +439,13 @@ impl<'a> Compiler<'a> {
     }
 
     fn parse_variable(&mut self, error: &str, scanner: &mut Scanner) -> usize {
+        dbg!(&self.current);
         self.consume(scanner, TokenKind::Identifier, error);
 
         self.declare_variable();
-        if self.scope_depth() > 0 {
-            return 0;
-        }
 
         let identifier = self.previous.as_ref().unwrap().clone();
+        dbg!(&identifier);
         self.identifier_constant(&identifier)
     }
 
@@ -904,6 +905,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_local(&self, state: &CompilerState, name: &Token) -> Option<usize> {
+        dbg!("resolve_local");
         let state = self.state();
         for (i, local) in state.locals.iter().enumerate().rev() {
             if self.identifiers_equal(&local.name, name) {
@@ -914,9 +916,10 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_upvalue(&mut self, state_idx: usize, name: &Token) -> Option<usize> {
+        dbg!("resolve_upvalue");
         if let Some(state) = self.state.get(state_idx) {
             if let Some(enclosing_idx) = state.enclosing {
-                if let Some(index) = self.resolve_upvalue(enclosing_idx - 1, name) {
+                if let Some(index) = self.resolve_upvalue(enclosing_idx, name) {
                     return Self::add_upvalue(self.state_mut(), index, true);
                 }
             }

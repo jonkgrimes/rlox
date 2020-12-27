@@ -137,7 +137,7 @@ impl Vm {
     }
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
-        let function = Function::new("Script");
+        let function = Function::new("Script", FunctionType::Script);
         let mut strings: HashSet<String> = HashSet::new();
         if let Ok(function) = compile(source, function, &mut strings) {
             let closure = Closure::new(function);

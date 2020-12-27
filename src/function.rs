@@ -7,6 +7,7 @@ use crate::upvalue::Upvalue;
 #[derive(Debug, Clone)]
 pub struct Function {
     name: String,
+    function_type: FunctionType,
     pub arity: usize,
     pub chunk: Chunk,
     pub upvalues: Vec<Upvalue>,
@@ -20,10 +21,11 @@ pub enum FunctionType {
 }
 
 impl Function {
-    pub fn new(name: &str) -> Function {
+    pub fn new(name: &str, function_type: FunctionType) -> Function {
         Function {
             name: String::from(name),
             arity: 0,
+            function_type,
             chunk: Chunk::new(),
             upvalues: Vec::new()
         }

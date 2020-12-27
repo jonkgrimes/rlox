@@ -1,5 +1,6 @@
 fun one() {
-  print "Call worked";
+  var a = "Call worked";
+  print a;
 }
 
 one();
