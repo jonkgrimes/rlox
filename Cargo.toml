@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 rustyline = "5.0.0"
+colored = "2"
 
 [features]
 debug = []

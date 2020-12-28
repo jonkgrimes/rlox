@@ -1,8 +1,8 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::function::Function;
 use crate::closure::Closure;
+use crate::function::Function;
 use crate::native_function::NativeFunction;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -13,7 +13,7 @@ pub enum Value {
     String(String),
     Function(Function),
     NativeFunction(NativeFunction),
-    Closure(Closure)
+    Closure(Closure),
 }
 
 impl Value {

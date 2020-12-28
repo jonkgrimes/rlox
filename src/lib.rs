@@ -1,24 +1,23 @@
-extern crate rustyline;
-
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+use colored::*;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
 mod chunk;
+mod closure;
 mod compiler;
 mod function;
 mod native_function;
-mod closure;
 mod op_code;
 mod scanner;
 mod token;
+mod upvalue;
 mod value;
 mod vm;
-mod upvalue;
 
 use op_code::OpCode;
 use vm::{Vm, VmResult};
@@ -56,7 +55,11 @@ pub fn run_file(path: &str) -> io::Result<()> {
     match interpret(&contents) {
         VmResult::CompileError => std::process::exit(65),
         VmResult::SyntaxError => std::process::exit(65),
-        VmResult::RuntimeError(_) => std::process::exit(70),
+        VmResult::RuntimeError(error_message) => {
+            let message = format!("Lox::RuntimeError: {}", error_message);
+            eprintln!("{}", message.red());
+            std::process::exit(70)
+        }
         VmResult::Ok => std::process::exit(0),
     }
 }
@@ -242,6 +245,9 @@ mod tests {
     fn stack_trace() {
         let source = test_file("test/test-22.lox");
         let result = interpret(&source);
-        assert_eq!(result, VmResult::Ok);
+        assert_eq!(
+            result,
+            VmResult::RuntimeError("An error occurred calling a function.".to_string())
+        );
     }
 }

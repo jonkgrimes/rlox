@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::fmt;
 
 use crate::chunk::Chunk;
-use crate::upvalue::Upvalue;
 
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -10,7 +9,6 @@ pub struct Function {
     function_type: FunctionType,
     pub arity: usize,
     pub chunk: Chunk,
-    pub upvalues: Vec<Upvalue>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +25,6 @@ impl Function {
             arity: 0,
             function_type,
             chunk: Chunk::new(),
-            upvalues: Vec::new()
         }
     }
 

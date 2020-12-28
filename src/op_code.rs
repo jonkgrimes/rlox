@@ -32,7 +32,7 @@ pub enum OpCode {
     Call(usize),
     Closure(usize),
     LocalValue(usize),
-    Upvalue(usize)
+    Upvalue(usize),
 }
 
 impl OpCode {
@@ -105,18 +105,19 @@ impl OpCode {
             OpCode::Call(arg_count) => println!("{} Call arg_count {}", prefix, arg_count),
             OpCode::Closure(index) => {
                 if let Some(constant) = chunk.constants.get(*index) {
-                    println!("{} Closure\t{} '{}'", prefix, index, constant);
                     if let Value::Closure(closure) = constant {
-                        for upvalue in &closure.function.upvalues {
+                        dbg!("Hello!");
+                        dbg!(&closure.upvalues);
+                        for upvalue in &closure.upvalues {
                             if upvalue.local {
                                 println!("{} Local value\t{} '{}'", prefix, index, constant);
-                            } else { 
+                            } else {
                                 println!("{} Upvalue\t{} '{}'", prefix, index, constant);
                             }
                         }
                     }
                 }
-            } 
+            }
             OpCode::LocalValue(index) => {
                 println!("{} Local value {}", prefix, index)
             }

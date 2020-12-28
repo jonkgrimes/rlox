@@ -1,15 +1,15 @@
 use std::collections::{HashMap, HashSet};
+use std::ops::RangeBounds;
 use std::ops::{Index, IndexMut};
 use std::time::SystemTime;
 use std::vec::Drain;
-use std::ops::RangeBounds;
 
+use crate::chunk::Chunk;
+use crate::closure::Closure;
 use crate::compiler::compile;
 use crate::function::{Function, FunctionType};
-use crate::closure::Closure;
 use crate::native_function::NativeFunction;
 use crate::value::Value;
-use crate::chunk::Chunk;
 use crate::OpCode;
 
 const STACK_MAX: usize = 256;
@@ -138,9 +138,9 @@ impl Vm {
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
         let function = Function::new("Script", FunctionType::Script);
+        let closure = Closure::new(function);
         let mut strings: HashSet<String> = HashSet::new();
-        if let Ok(function) = compile(source, function, &mut strings) {
-            let closure = Closure::new(function);
+        if let Ok(closure) = compile(source, closure, &mut strings) {
             self.frames.push(CallFrame {
                 closure,
                 ip: 0,
@@ -388,8 +388,9 @@ impl Vm {
                         Value::Function(function) => {
                             let closure = Closure::new(function.clone());
                             stack.push(Value::Closure(closure));
-                        },
-                        _ => panic!("Received a value that was not a function!")
+                        }
+                        Value::Closure(closure) => stack.push(Value::Closure(closure.clone())),
+                        _ => panic!("Received a value that was not a function!"),
                     }
                 }
                 OpCode::LocalValue(_) => {
@@ -418,7 +419,7 @@ impl Vm {
                     // Push return of function back onto the stack
                     stack.push(value);
 
-                    // Remove the call frame 
+                    // Remove the call frame
                     self.frames.pop();
                 }
             }

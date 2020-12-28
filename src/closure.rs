@@ -1,15 +1,16 @@
+use crate::{function::Function, upvalue::Upvalue};
 use std::fmt;
-use crate::function::Function;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct Closure { 
+pub struct Closure {
     pub function: Function,
-    // variables
+    pub upvalues: Vec<Upvalue>,
 }
 
 impl Closure {
     pub fn new(function: Function) -> Self {
-        Closure { function }
+        let upvalues: Vec<Upvalue> = Vec::new();
+        Closure { function, upvalues }
     }
 }
 
