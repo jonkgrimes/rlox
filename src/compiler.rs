@@ -7,7 +7,6 @@ use crate::function::{Function, FunctionType};
 use crate::op_code::OpCode;
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenKind};
-use crate::upvalue::Upvalue;
 use crate::value::Value;
 
 #[derive(Debug)]
@@ -58,7 +57,15 @@ struct Compiler<'a> {
     current: Option<Token>,
     previous: Option<Token>,
     had_error: bool,
-    state: Vec<CompilerState>,
+    states: Vec<CompilerState>,
+    upvalues: Vec<Upvalue>,
+}
+
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+struct Upvalue {
+    pub local: bool,
+    pub index: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -69,8 +76,8 @@ struct CompilerState {
     scope_depth: usize,
     locals: Vec<Local>,
     local_count: usize,
-    upvalues: Vec<Upvalue>,
     upvalue_count: usize,
+    upvalues: Vec<Upvalue>
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +106,7 @@ impl<'a> Compiler<'a> {
             local_count: 0,
             locals: Vec::new(),
             upvalue_count: 0,
-            upvalues: Vec::new(),
+            upvalues: Vec::new()
         };
         Compiler {
             source,
@@ -107,20 +114,21 @@ impl<'a> Compiler<'a> {
             current: None,
             previous: None,
             had_error: false,
-            state: vec![state],
+            states: vec![state],
+            upvalues: Vec::new(),
         }
     }
 
     fn state(&self) -> &CompilerState {
-        self.state.last().unwrap()
+        self.states.last().unwrap()
     }
 
     fn current_state_index(&self) -> usize {
-        self.state.len() - 1
+        self.states.len() - 1
     }
 
     fn state_mut(&mut self) -> &mut CompilerState {
-        self.state.last_mut().unwrap()
+        self.states.last_mut().unwrap()
     }
 
     fn emit_opcode(&mut self, op_code: OpCode) {
@@ -315,7 +323,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn init_state(&mut self, closure: Closure) {
-        let enclosing = Some(self.state.len() - 1);
+        let enclosing = Some(self.states.len() - 1);
         let state: CompilerState = CompilerState {
             closure,
             function_type: FunctionType::Function,
@@ -324,15 +332,15 @@ impl<'a> Compiler<'a> {
             local_count: 0,
             locals: Vec::new(),
             upvalue_count: 0,
-            upvalues: Vec::new(),
+            upvalues: Vec::new()
         };
-        self.state.push(state);
+        self.states.push(state);
     }
 
     fn end_state(&mut self) -> Result<Closure, CompilerError> {
         self.emit_opcode(OpCode::Nil);
         self.emit_opcode(OpCode::Return);
-        let state = self.state.pop().unwrap();
+        let state = self.states.pop().unwrap();
         Ok(state.closure)
     }
 
@@ -396,17 +404,18 @@ impl<'a> Compiler<'a> {
 
         match self.end_state() {
             Ok(closure) => {
-                let upvalues = closure.upvalues.clone();
                 let index = self.add_constant(Value::Closure(closure));
                 self.emit_opcode(OpCode::Closure(index));
 
-                for upvalue in upvalues {
+                let opcodes: Vec<OpCode> = self.upvalues.iter().map(|upvalue| {
                     if upvalue.local {
-                        self.emit_opcode(OpCode::LocalValue(upvalue.index))
+                        OpCode::LocalValue(upvalue.index)
                     } else {
-                        self.emit_opcode(OpCode::Upvalue(upvalue.index))
+                        OpCode::Upvalue(upvalue.index)
                     }
-                }
+                }).collect();
+
+                opcodes.iter().for_each(|op_code| self.emit_opcode(*op_code))
             }
             Err(e) => {
                 let message = format!("There was a problem compiling the function {}", e);
@@ -917,7 +926,6 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_local(&self, state: &CompilerState, name: &Token) -> Option<usize> {
-        let state = self.state();
         for (i, local) in state.locals.iter().enumerate().rev() {
             if self.identifiers_equal(&local.name, name) {
                 return Some(i);
@@ -927,10 +935,14 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_upvalue(&mut self, state_idx: usize, name: &Token) -> Option<usize> {
-        if let Some(state) = self.state.get(state_idx) {
+        if let Some(state) = self.states.get(state_idx) {
             if let Some(enclosing_idx) = state.enclosing {
+                if let Some(index) = self.resolve_local(state, name) {
+                    return self.add_upvalue(index, true);
+                }
+
                 if let Some(index) = self.resolve_upvalue(enclosing_idx, name) {
-                    return Self::add_upvalue(self.state_mut(), index, true);
+                    return self.add_upvalue(index, false);
                 }
             }
         }
@@ -938,14 +950,14 @@ impl<'a> Compiler<'a> {
         None
     }
 
-    fn add_upvalue(state: &mut CompilerState, index: usize, local: bool) -> Option<usize> {
-        for (idx, upvalue) in state.upvalues.iter().enumerate() {
+    fn add_upvalue(&mut self, index: usize, local: bool) -> Option<usize> {
+        for (idx, upvalue) in self.upvalues.iter().enumerate() {
             if upvalue.index == index && upvalue.local == local {
                 return Some(idx);
             }
         }
-        state.upvalues.push(Upvalue { local, index });
-        Some(state.upvalues.len())
+        self.upvalues.push(Upvalue { local, index });
+        Some(self.upvalues.len())
     }
 
     fn identifiers_equal(&self, lhs: &Token, rhs: &Token) -> bool {

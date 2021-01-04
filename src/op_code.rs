@@ -1,7 +1,7 @@
 use crate::chunk::Chunk;
 use crate::value::Value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum OpCode {
     Return,
     Negate,
@@ -106,10 +106,8 @@ impl OpCode {
             OpCode::Closure(index) => {
                 if let Some(constant) = chunk.constants.get(*index) {
                     if let Value::Closure(closure) = constant {
-                        dbg!("Hello!");
-                        dbg!(&closure.upvalues);
                         for upvalue in &closure.upvalues {
-                            if upvalue.local {
+                            if upvalue.local() {
                                 println!("{} Local value\t{} '{}'", prefix, index, constant);
                             } else {
                                 println!("{} Upvalue\t{} '{}'", prefix, index, constant);

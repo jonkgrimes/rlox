@@ -15,7 +15,7 @@ mod native_function;
 mod op_code;
 mod scanner;
 mod token;
-mod upvalue;
+mod upvalue_ref;
 mod value;
 mod vm;
 

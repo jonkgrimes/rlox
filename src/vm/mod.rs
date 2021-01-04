@@ -1,18 +1,18 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::RangeBounds;
-use std::ops::{Index, IndexMut};
 use std::time::SystemTime;
-use std::vec::Drain;
 
-use crate::chunk::Chunk;
+mod stack;
+
+use crate::{chunk::Chunk};
 use crate::closure::Closure;
 use crate::compiler::compile;
 use crate::function::{Function, FunctionType};
 use crate::native_function::NativeFunction;
 use crate::value::Value;
+use crate::upvalue_ref::UpvalueRef;
 use crate::OpCode;
+use stack::Stack;
 
-const STACK_MAX: usize = 256;
 const FRAMES_MAX: usize = 64;
 
 macro_rules! bin_op {
@@ -56,70 +56,6 @@ impl CallFrame {
     }
 }
 
-#[derive(Debug)]
-struct Stack {
-    top: usize,
-    stack: Vec<Value>,
-}
-
-impl Stack {
-    fn new() -> Stack {
-        Self {
-            top: 0,
-            stack: Vec::with_capacity(STACK_MAX),
-        }
-    }
-
-    fn reset(&mut self) {
-        self.stack.clear();
-        self.top = 0;
-    }
-
-    fn push(&mut self, value: Value) {
-        self.stack.push(value);
-        self.top += 1;
-    }
-
-    fn pop(&mut self) -> Value {
-        self.top -= 1;
-        self.stack.pop().unwrap()
-    }
-
-    fn peek(&self, distance: usize) -> &Value {
-        let peek_index = self.top - distance - 1;
-        &self.stack[peek_index]
-    }
-
-    fn drain<R>(&mut self, range: R) -> Drain<'_, Value>
-    where
-        R: RangeBounds<usize>,
-    {
-        let result = self.stack.drain(range);
-        result
-    }
-
-    fn print_stack(&self) {
-        println!("======== STACK =======");
-        for i in 0..self.top {
-            println!("[{}]", self.stack[i]);
-        }
-    }
-}
-
-impl Index<usize> for Stack {
-    type Output = Value;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.stack[index]
-    }
-}
-
-impl IndexMut<usize> for Stack {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.stack[index]
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum VmResult {
     Ok,
@@ -156,7 +92,7 @@ impl Vm {
         self.frames.last_mut().unwrap()
     }
 
-    fn frame(&mut self) -> &CallFrame {
+    fn frame(&self) -> &CallFrame {
         self.frames.last().unwrap()
     }
 
@@ -353,9 +289,8 @@ impl Vm {
                     stack[slots + *index] = value.clone();
                 }
                 OpCode::GetUpvalue(index) => {
-                    let slots = self.frame().slots;
-                    let value = stack[slots + *index].clone();
-                    stack.push(value);
+                    let value = self.frame().closure.upvalues.get(*index).unwrap();
+                    stack.push((*value.location_ref()).clone());
                 }
                 OpCode::JumpIfFalse(offset) => {
                     let value = stack.peek(0);
@@ -389,7 +324,19 @@ impl Vm {
                             let closure = Closure::new(function.clone());
                             stack.push(Value::Closure(closure));
                         }
-                        Value::Closure(closure) => stack.push(Value::Closure(closure.clone())),
+                        Value::Closure(closure) => {
+                            let mut new_closure = closure.clone();
+/*                             for upvalue in &closure.upvalues {
+                                if upvalue.local() {
+                                    let captured_upvalue = self.capture_upvalue(self.frame().slots + upvalue.index);
+                                    new_closure.upvalues.push(captured_upvalue)
+                                } else {
+                                    let frame_upvalue = self.frame().closure.upvalues.get(upvalue.index).unwrap();
+                                    new_closure.upvalues.push(frame_upvalue.clone());
+                                }
+                            }; */
+                            stack.push(Value::Closure(new_closure))
+                        },
                         _ => panic!("Received a value that was not a function!"),
                     }
                 }
@@ -408,13 +355,13 @@ impl Vm {
                     }
 
                     // Need to reset the stack
-                    let top = stack.top;
+                    let top = stack.top();
                     // Count number of slots and function
                     let offset = (top - self.frame().slots) + 1;
                     // Drop the references to the slots and function call
                     stack.drain((self.frame().slots - 1)..top);
                     // Set the stack top
-                    stack.top -= offset;
+                    stack.set_top_by_offset(offset);
 
                     // Push return of function back onto the stack
                     stack.push(value);
@@ -436,7 +383,7 @@ impl Vm {
     ) -> (bool, FunctionType) {
         match callee {
             Value::Closure(closure) => (
-                self.call(stack.top, closure, arg_count),
+                self.call(stack.top(), closure, arg_count),
                 FunctionType::Function,
             ),
             Value::NativeFunction(function) => {
@@ -477,6 +424,10 @@ impl Vm {
 
         true
     }
+
+/*     fn capture_upvalue(&self, index: usize) -> UpvalueRef {
+        Upvalue { local: false, index }
+    } */
 
     fn print_call_frame(&mut self) {
         println!("======== FRAME =======");
