@@ -1,9 +1,9 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::closure::Closure;
-use crate::function::Function;
-use crate::native_function::NativeFunction;
+use crate::core::Closure;
+use crate::core::Function;
+use crate::core::NativeFunction;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {

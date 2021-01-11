@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::value::Value; 
+use crate::core::Value; 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct UpvalueRef {
     local: bool,

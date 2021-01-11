@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use crate::chunk::Chunk;
+use crate::vm::Chunk;
 
 #[derive(Debug, Clone)]
 pub struct Function {

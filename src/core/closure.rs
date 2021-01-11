@@ -1,5 +1,5 @@
-use crate::{function::Function};
-use crate::upvalue_ref::UpvalueRef;
+use crate::core::Function;
+use crate::core::UpvalueRef;
 use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]

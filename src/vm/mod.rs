@@ -2,16 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
 
 mod stack;
+mod chunk;
+mod op_code;
 
-use crate::{chunk::Chunk};
-use crate::closure::Closure;
 use crate::compiler::compile;
-use crate::function::{Function, FunctionType};
-use crate::native_function::NativeFunction;
-use crate::value::Value;
-use crate::upvalue_ref::UpvalueRef;
-use crate::OpCode;
+use crate::core::{Value, UpvalueRef, Function, FunctionType, NativeFunction, Closure};
 use stack::Stack;
+pub use chunk::Chunk;
+pub use op_code::OpCode;
 
 const FRAMES_MAX: usize = 64;
 

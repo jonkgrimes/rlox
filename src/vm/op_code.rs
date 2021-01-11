@@ -1,5 +1,5 @@
-use crate::chunk::Chunk;
-use crate::value::Value;
+use crate::vm::Chunk;
+use crate::core::Value;
 
 #[derive(Clone, Copy, Debug)]
 pub enum OpCode {

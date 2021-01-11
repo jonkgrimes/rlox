@@ -2,7 +2,7 @@ use std::ops::RangeBounds;
 use std::ops::{Index, IndexMut};
 use std::vec::Drain;
 
-use crate::value::Value;
+use crate::core::Value;
 
 const STACK_MAX: usize = 256;
 

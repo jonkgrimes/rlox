@@ -2,12 +2,9 @@ use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::closure::Closure;
-use crate::function::{Function, FunctionType};
-use crate::op_code::OpCode;
-use crate::scanner::Scanner;
-use crate::token::{Token, TokenKind};
-use crate::value::Value;
+use crate::core::{Function, FunctionType, Value, Closure};
+use crate::vm::OpCode;
+use crate::scanner::{Scanner, Token, TokenKind};
 
 #[derive(Debug)]
 pub struct CompilerError(String);

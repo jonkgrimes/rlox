@@ -7,19 +7,11 @@ use colored::*;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
-mod chunk;
-mod closure;
-mod compiler;
-mod function;
-mod native_function;
-mod op_code;
+mod core;
 mod scanner;
-mod token;
-mod upvalue_ref;
-mod value;
+mod compiler;
 mod vm;
 
-use op_code::OpCode;
 use vm::{Vm, VmResult};
 
 pub fn repl() -> io::Result<()> {

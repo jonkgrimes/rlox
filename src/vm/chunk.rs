@@ -1,5 +1,5 @@
-use crate::op_code::OpCode;
-use crate::value::Value;
+use crate::vm::OpCode;
+use crate::core::Value;
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
