@@ -74,9 +74,9 @@ impl Vm {
 
     pub fn interpret(&mut self, source: &str) -> VmResult {
         let function = Function::new("Script", FunctionType::Script);
-        let closure = Closure::new(function);
         let mut strings: HashSet<String> = HashSet::new();
-        if let Ok(closure) = compile(source, closure, &mut strings) {
+        if let Ok(function) = compile(source, function, &mut strings) {
+            let closure = Closure::new(function);
             self.frames.push(CallFrame {
                 closure,
                 ip: 0,

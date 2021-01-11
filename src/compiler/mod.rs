@@ -70,7 +70,7 @@ struct Upvalue {
 
 #[derive(Debug, Clone)]
 struct CompilerState {
-    closure: Closure,
+    function: Function,
     function_type: FunctionType,
     enclosing: Option<usize>,
     scope_depth: usize,
@@ -88,18 +88,18 @@ struct Local {
 
 pub fn compile(
     source: &str,
-    closure: Closure,
+    function: Function,
     strings: &mut HashSet<String>,
-) -> Result<Closure, CompilerError> {
+) -> Result<Function, CompilerError> {
     let mut scanner = Scanner::new(source);
-    let mut compiler = Compiler::new(source, closure, strings);
+    let mut compiler = Compiler::new(source, function, strings);
     compiler.compile(&mut scanner)
 }
 
 impl<'a> Compiler<'a> {
-    fn new(source: &'a str, closure: Closure, strings: &'a mut HashSet<String>) -> Compiler<'a> {
+    fn new(source: &'a str, function: Function, strings: &'a mut HashSet<String>) -> Compiler<'a> {
         let state: CompilerState = CompilerState {
-            closure,
+            function,
             function_type: FunctionType::Script,
             enclosing: None,
             scope_depth: 0,
@@ -134,13 +134,12 @@ impl<'a> Compiler<'a> {
     fn emit_opcode(&mut self, op_code: OpCode) {
         let line = self.current.as_ref().map_or(1, |t| t.line as u32);
         self.state_mut()
-            .closure
             .function
             .chunk
             .write_chunk(op_code, line);
     }
 
-    fn compile(&mut self, scanner: &mut Scanner) -> Result<Closure, CompilerError> {
+    fn compile(&mut self, scanner: &mut Scanner) -> Result<Function, CompilerError> {
         self.advance(scanner);
 
         loop {
@@ -156,14 +155,13 @@ impl<'a> Compiler<'a> {
 
         if self.had_error {
             self.state()
-                .closure
                 .function
                 .chunk
                 .disassemble("Total Chunk")
         }
 
         if !self.had_error {
-            Ok(self.state().closure.clone())
+            Ok(self.state().function.clone())
         } else {
             Err(CompilerError(
                 "There was an error during compilation".to_string(),
@@ -322,10 +320,10 @@ impl<'a> Compiler<'a> {
         self.define_variable(global);
     }
 
-    fn init_state(&mut self, closure: Closure) {
+    fn init_state(&mut self, function: Function) {
         let enclosing = Some(self.states.len() - 1);
         let state: CompilerState = CompilerState {
-            closure,
+            function,
             function_type: FunctionType::Function,
             enclosing,
             scope_depth: 0,
@@ -337,11 +335,11 @@ impl<'a> Compiler<'a> {
         self.states.push(state);
     }
 
-    fn end_state(&mut self) -> Result<Closure, CompilerError> {
+    fn end_state(&mut self) -> Result<Function, CompilerError> {
         self.emit_opcode(OpCode::Nil);
         self.emit_opcode(OpCode::Return);
         let state = self.states.pop().unwrap();
-        Ok(state.closure)
+        Ok(state.function)
     }
 
     fn function(
@@ -352,7 +350,6 @@ impl<'a> Compiler<'a> {
     ) {
         let constant = self
             .state()
-            .closure
             .function
             .chunk
             .constants
@@ -362,7 +359,7 @@ impl<'a> Compiler<'a> {
             Value::String(string) => string,
             _ => "Undefined",
         };
-        let function = Closure::new(Function::new(&name, function_type));
+        let function = Function::new(&name, function_type);
         self.init_state(function);
         self.begin_scope();
 
@@ -376,9 +373,9 @@ impl<'a> Compiler<'a> {
         // Parse parameters
         if !self.matches(TokenKind::RightParen, scanner) {
             loop {
-                self.state_mut().closure.function.arity += 1;
+                self.state_mut().function.arity += 1;
 
-                if self.state().closure.function.arity > 255 {
+                if self.state().function.arity > 255 {
                     self.error_at_current("Cannot have more than 255 parameters.");
                 }
                 let index = self.parse_variable("Expect parameter name.", scanner);
@@ -403,7 +400,8 @@ impl<'a> Compiler<'a> {
         self.block(scanner);
 
         match self.end_state() {
-            Ok(closure) => {
+            Ok(function) => {
+                let closure = Closure::new(function);
                 let index = self.add_constant(Value::Closure(closure));
                 self.emit_opcode(OpCode::Closure(index));
 
@@ -432,7 +430,6 @@ impl<'a> Compiler<'a> {
         } else {
             let line = self.current.as_ref().unwrap().line as u32;
             self.state_mut()
-                .closure
                 .function
                 .chunk
                 .write_chunk(OpCode::Nil, line);
@@ -512,7 +509,6 @@ impl<'a> Compiler<'a> {
 
     fn add_constant(&mut self, constant: Value) -> usize {
         self.state_mut()
-            .closure
             .function
             .chunk
             .add_constant(constant)
@@ -592,7 +588,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn while_statement(&mut self, scanner: &mut Scanner) {
-        let loop_start = self.state().closure.function.chunk.code.len();
+        let loop_start = self.state().function.chunk.code.len();
         self.consume(scanner, TokenKind::LeftParen, "Expect '(' after 'while'.");
         self.expression(scanner);
 
@@ -626,7 +622,7 @@ impl<'a> Compiler<'a> {
             self.expression_statement(scanner);
         }
 
-        let mut loop_start = self.state().closure.function.chunk.code.len();
+        let mut loop_start = self.state().function.chunk.code.len();
 
         // Condition clause
         let mut exit_jump = None;
@@ -646,7 +642,7 @@ impl<'a> Compiler<'a> {
         if !self.matches(TokenKind::RightParen, scanner) {
             let body_jump = self.emit_jump(OpCode::Jump(0));
 
-            let inc_start = self.state().closure.function.chunk.code.len();
+            let inc_start = self.state().function.chunk.code.len();
 
             self.expression(scanner);
             self.emit_opcode(OpCode::Pop);
@@ -675,17 +671,17 @@ impl<'a> Compiler<'a> {
 
     fn emit_jump(&mut self, op_code: OpCode) -> usize {
         self.emit_opcode(op_code);
-        self.state().closure.function.chunk.code.len() - 1
+        self.state().function.chunk.code.len() - 1
     }
 
     fn patch_jump(&mut self, jmp: usize) {
-        let offset = self.state().closure.function.chunk.code.len() - jmp - 1;
-        match self.state().closure.function.chunk.code.get(jmp) {
+        let offset = self.state().function.chunk.code.len() - jmp - 1;
+        match self.state().function.chunk.code.get(jmp) {
             Some(OpCode::Jump(_)) => {
-                self.state_mut().closure.function.chunk.code[jmp] = OpCode::Jump(offset)
+                self.state_mut().function.chunk.code[jmp] = OpCode::Jump(offset)
             }
             Some(OpCode::JumpIfFalse(_)) => {
-                self.state_mut().closure.function.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
+                self.state_mut().function.chunk.code[jmp] = OpCode::JumpIfFalse(offset);
             }
             _ => {}
         }
@@ -693,9 +689,8 @@ impl<'a> Compiler<'a> {
 
     fn emit_loop(&mut self, loop_start: usize) {
         let line = self.current.as_ref().unwrap().line as u32;
-        let offset = self.state().closure.function.chunk.code.len() - loop_start;
+        let offset = self.state().function.chunk.code.len() - loop_start;
         self.state_mut()
-            .closure
             .function
             .chunk
             .write_chunk(OpCode::Loop(offset), line);
@@ -710,7 +705,6 @@ impl<'a> Compiler<'a> {
         );
         let line = self.current.as_ref().unwrap().line as u32;
         self.state_mut()
-            .closure
             .function
             .chunk
             .write_chunk(OpCode::Pop, line);
@@ -956,6 +950,7 @@ impl<'a> Compiler<'a> {
                 return Some(idx);
             }
         }
+        self.state_mut().function.upvalue_count += 1;
         self.upvalues.push(Upvalue { local, index });
         Some(self.upvalues.len())
     }

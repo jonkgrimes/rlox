@@ -9,6 +9,7 @@ pub struct Function {
     function_type: FunctionType,
     pub arity: usize,
     pub chunk: Chunk,
+    pub upvalue_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,6 +26,7 @@ impl Function {
             arity: 0,
             function_type,
             chunk: Chunk::new(),
+            upvalue_count: 0
         }
     }
 

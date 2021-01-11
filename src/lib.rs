@@ -250,4 +250,11 @@ mod tests {
             VmResult::RuntimeError("An error occurred calling a function.".to_string())
         );
     }
+
+    #[test]
+    fn closures() {
+        let source = test_file("test/test-28.lox");
+        let result = interpret(&source);
+        assert_eq!(result, VmResult::Ok);
+    }
 }
