@@ -877,7 +877,7 @@ impl<'a> Compiler<'a> {
         compiler.patch_jump(end_jump);
     }
 
-    fn literal(compiler: &mut Compiler, scanner: &mut Scanner, _can_assign: bool) {
+    fn literal(compiler: &mut Compiler, _scanner: &mut Scanner, _can_assign: bool) {
         let operator = compiler.previous.as_ref().unwrap().kind.clone();
         match operator {
             TokenKind::Nil => compiler.emit_opcode(OpCode::Nil),

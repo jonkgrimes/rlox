@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
+use std::rc::Rc;
 
 mod stack;
 mod chunk;
@@ -107,6 +108,7 @@ impl Vm {
         }
 
         loop {
+            let mut step = 1;
             let ip = self.frame().ip;
             let op_code = &self.frame().code_at(ip).clone();
 
@@ -288,7 +290,7 @@ impl Vm {
                 }
                 OpCode::GetUpvalue(index) => {
                     let value = self.frame().closure.upvalues.get(*index).unwrap();
-                    stack.push((*value.location_ref()).clone());
+                    stack.push(*value.location);
                 }
                 OpCode::JumpIfFalse(offset) => {
                     let value = stack.peek(0);
@@ -324,15 +326,22 @@ impl Vm {
                         }
                         Value::Closure(closure) => {
                             let mut new_closure = closure.clone();
-/*                             for upvalue in &closure.upvalues {
-                                if upvalue.local() {
-                                    let captured_upvalue = self.capture_upvalue(self.frame().slots + upvalue.index);
-                                    new_closure.upvalues.push(captured_upvalue)
-                                } else {
-                                    let frame_upvalue = self.frame().closure.upvalues.get(upvalue.index).unwrap();
-                                    new_closure.upvalues.push(frame_upvalue.clone());
+                            for _ in 0..(new_closure.upvalue_count) {
+                                step += 1;
+                                let variable = self.frame().code_at(ip + step);
+                                match variable {
+                                    OpCode::LocalValue(index) => {
+                                        let upvalue = self.capture_upvalue(&stack, self.frame().slots + index);
+                                        new_closure.upvalues.push(upvalue);
+                                    },
+                                    OpCode::Upvalue(index) => {
+                                        new_closure.upvalues.push(self.frame().closure.upvalues.get(*index).unwrap().clone())
+                                    },
+                                    _ => {
+                                        panic!("Tried to resolve an upvalue but received an unexpected instruction")
+                                    }
                                 }
-                            }; */
+                            }
                             stack.push(Value::Closure(new_closure))
                         },
                         _ => panic!("Received a value that was not a function!"),
@@ -369,7 +378,7 @@ impl Vm {
                 }
             }
 
-            self.frame_mut().ip += 1
+            self.frame_mut().ip += step;
         }
     }
 
@@ -423,9 +432,11 @@ impl Vm {
         true
     }
 
-/*     fn capture_upvalue(&self, index: usize) -> UpvalueRef {
-        Upvalue { local: false, index }
-    } */
+    fn capture_upvalue(&self, stack: &Stack, index: usize) -> UpvalueRef {
+        let slots = self.frame().slots;
+        let value = stack[slots + index];
+        UpvalueRef { local: false, location: &mut value }
+    }
 
     fn print_call_frame(&mut self) {
         println!("======== FRAME =======");
