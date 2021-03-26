@@ -65,6 +65,12 @@ struct Upvalue {
     pub index: usize,
 }
 
+impl Upvalue {
+    fn new(local: bool, index: usize) -> Self {
+        Self { local, index }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct CompilerState {
     function: Function,
@@ -103,7 +109,7 @@ impl<'a> Compiler<'a> {
             local_count: 0,
             locals: Vec::new(),
             upvalue_count: 0,
-            upvalues: Vec::new()
+            upvalues: Vec::with_capacity(u8::MAX as usize)
         };
         Compiler {
             source,
@@ -398,19 +404,20 @@ impl<'a> Compiler<'a> {
 
         match self.end_state() {
             Ok(function) => {
+                let upvalue_count = function.upvalue_count;
+                dbg!(function.name());
                 let closure = Closure::new(function);
                 let index = self.add_constant(Value::Closure(closure));
                 self.emit_opcode(OpCode::Closure(index));
 
-                let opcodes: Vec<OpCode> = self.upvalues.iter().map(|upvalue| {
+                for i in 0..upvalue_count {
+                    let upvalue = &self.upvalues[i];
                     if upvalue.local {
-                        OpCode::LocalValue(upvalue.index)
+                        self.emit_opcode(OpCode::LocalValue(upvalue.index))
                     } else {
-                        OpCode::Upvalue(upvalue.index)
+                        self.emit_opcode(OpCode::Upvalue(upvalue.index))
                     }
-                }).collect();
-
-                opcodes.iter().for_each(|op_code| self.emit_opcode(*op_code))
+                }
             }
             Err(e) => {
                 let message = format!("There was a problem compiling the function {}", e);
@@ -896,7 +903,7 @@ impl<'a> Compiler<'a> {
         let get_op;
         let set_op;
 
-        if let Some(index) = self.resolve_local(self.state(), &token) {
+        if let Some(index) = self.resolve_local(self.current_state_index(), &token) {
             get_op = OpCode::GetLocal(index);
             set_op = OpCode::SetLocal(index);
         } else if let Some(index) = self.resolve_upvalue(self.current_state_index(), &token) {
@@ -916,23 +923,33 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn resolve_local(&self, state: &CompilerState, name: &Token) -> Option<usize> {
-        for (i, local) in state.locals.iter().enumerate().rev() {
-            if self.identifiers_equal(&local.name, name) {
-                return Some(i);
+    fn resolve_local(&self, state_idx: usize, name: &Token) -> Option<usize> {
+        let state = self.states.get(state_idx);
+        match state {
+            Some(state) => {
+                for (i, local) in state.locals.iter().enumerate().rev() {
+                    if self.identifiers_equal(&local.name, name) {
+                        return Some(i);
+                    }
+                }
+                None
             }
+            None => None
         }
-        None
     }
 
     fn resolve_upvalue(&mut self, state_idx: usize, name: &Token) -> Option<usize> {
+        dbg!(&self.source[name.as_range()]);
+        dbg!(state_idx);
         if let Some(state) = self.states.get(state_idx) {
             if let Some(enclosing_idx) = state.enclosing {
-                if let Some(index) = self.resolve_local(state, name) {
+                if let Some(index) = self.resolve_local(enclosing_idx, name) {
+                    println!("Adding local upvalue for {:?}", &self.source[name.as_range()]);
                     return self.add_upvalue(index, true);
                 }
 
                 if let Some(index) = self.resolve_upvalue(enclosing_idx, name) {
+                    println!("Adding non-local upvalue for {:?}", &self.source[name.as_range()]);
                     return self.add_upvalue(index, false);
                 }
             }
@@ -942,23 +959,25 @@ impl<'a> Compiler<'a> {
     }
 
     fn add_upvalue(&mut self, index: usize, local: bool) -> Option<usize> {
-        for (idx, upvalue) in self.upvalues.iter().enumerate() {
-            if upvalue.index == index && upvalue.local == local {
-                return Some(idx);
+        let mut upvalue_count = self.state().function.upvalue_count;
+        for i in 0..upvalue_count {
+            let upvalue = &self.upvalues[i];
+            if upvalue.local == local && upvalue.index == index {
+                return Some(i);
             }
         }
-        self.state_mut().function.upvalue_count += 1;
-        self.upvalues.push(Upvalue { local, index });
-        Some(self.upvalues.len())
+        self.upvalues.push(Upvalue::new(local, index));
+        upvalue_count += 1;
+        self.state_mut().function.upvalue_count = upvalue_count;
+        Some(upvalue_count)
     }
 
     fn identifiers_equal(&self, lhs: &Token, rhs: &Token) -> bool {
         if lhs.length != rhs.length {
             return false;
         }
-        let lhs_range = lhs.start..(lhs.start + lhs.length);
-        let rhs_range = rhs.start..(rhs.start + rhs.length);
-        if self.source[lhs_range] == self.source[rhs_range] {
+
+        if self.source[lhs.as_range()] == self.source[rhs.as_range()] {
             return true;
         }
         false

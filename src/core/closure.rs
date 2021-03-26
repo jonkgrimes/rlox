@@ -2,8 +2,6 @@ use crate::core::Function;
 use crate::core::UpvalueRef;
 use std::fmt;
 
-use super::function;
-
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Closure {
     pub function: Function,

@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
-use std::rc::Rc;
 
 mod stack;
 mod chunk;
 mod op_code;
+mod heap;
 
 use crate::compiler::compile;
 use crate::core::{Value, UpvalueRef, Function, FunctionType, NativeFunction, Closure};
 use stack::Stack;
 pub use chunk::Chunk;
 pub use op_code::OpCode;
+pub use heap::{ObjectId, Heap};
 
 const FRAMES_MAX: usize = 64;
 
@@ -102,6 +103,7 @@ impl Vm {
         globals.insert("clock".to_string(), Value::NativeFunction(clock));
 
         let mut stack: Stack = Stack::new();
+        let mut heap: Heap = Heap::new();
 
         if cfg!(feature = "debug") {
             self.print_iseq();
@@ -290,7 +292,7 @@ impl Vm {
                 }
                 OpCode::GetUpvalue(index) => {
                     let value = self.frame().closure.upvalues.get(*index).unwrap();
-                    stack.push(*value.location);
+                    // stack.push(*value.location);
                 }
                 OpCode::JumpIfFalse(offset) => {
                     let value = stack.peek(0);
@@ -321,14 +323,18 @@ impl Vm {
                     let constant = self.frame().get_constant(*index).unwrap();
                     match constant {
                         Value::Function(function) => {
+                            dbg!("function");
                             let closure = Closure::new(function.clone());
                             stack.push(Value::Closure(closure));
                         }
                         Value::Closure(closure) => {
+                            dbg!(&closure.function);
                             let mut new_closure = closure.clone();
                             for _ in 0..(new_closure.upvalue_count) {
-                                step += 1;
                                 let variable = self.frame().code_at(ip + step);
+                                step += 1;
+                                dbg!(variable);
+                                dbg!(&new_closure.upvalues);
                                 match variable {
                                     OpCode::LocalValue(index) => {
                                         let upvalue = self.capture_upvalue(&stack, self.frame().slots + index);
@@ -348,10 +354,10 @@ impl Vm {
                     }
                 }
                 OpCode::LocalValue(_) => {
-                    panic!("Local value opcode was attempted to be executed")
+                    // panic!("Local value opcode was attempted to be executed")
                 }
                 OpCode::Upvalue(_) => {
-                    panic!("Upvalue opcode was attempted to be executed")
+                    // panic!("Upvalue opcode was attempted to be executed")
                 }
                 OpCode::Return => {
                     // Get the return value and store temporarily
@@ -434,8 +440,8 @@ impl Vm {
 
     fn capture_upvalue(&self, stack: &Stack, index: usize) -> UpvalueRef {
         let slots = self.frame().slots;
-        let value = stack[slots + index];
-        UpvalueRef { local: false, location: &mut value }
+        let value = &stack[slots + index];
+        UpvalueRef::new(false, index)
     }
 
     fn print_call_frame(&mut self) {

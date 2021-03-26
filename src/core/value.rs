@@ -31,20 +31,6 @@ impl Value {
             _ => false,
         }
     }
-
-    fn is_nil(&self) -> bool {
-        match self {
-            Value::Nil => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_string(&self) -> bool {
-        match self {
-            Value::String(_) => true,
-            _ => false,
-        }
-    }
 }
 
 impl fmt::Display for Value {

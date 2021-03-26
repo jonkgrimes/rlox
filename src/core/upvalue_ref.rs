@@ -1,14 +1,16 @@
-use std::rc::Rc;
 use std::fmt;
 
-use crate::core::Value; 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct UpvalueRef {
     local: bool,
-    location: *mut Value
+    location: usize
 }
 
 impl UpvalueRef {
+    pub fn new(local: bool, location: usize) -> Self {
+        Self { local, location }
+    }
+
     pub fn local(&self) -> bool {
         self.local
     }

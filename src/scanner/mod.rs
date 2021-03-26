@@ -262,10 +262,6 @@ impl<'a> Scanner<'a> {
         }
         TokenKind::Identifier
     }
-
-    pub fn line(&self) -> i32 {
-        self.line
-    }
 }
 
 fn is_digit(c: &str) -> bool {

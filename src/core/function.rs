@@ -33,6 +33,10 @@ impl Function {
     pub fn disassemble(&self) {
         self.chunk.disassemble(&self.name)
     }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
 }
 
 impl fmt::Display for Function {

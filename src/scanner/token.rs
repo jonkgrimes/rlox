@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
@@ -24,7 +26,12 @@ impl Token {
             line,
         )
     }
+
+    pub fn as_range(&self) -> Range<usize> {
+        self.start..(self.start + self.length)
+    }
 }
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {
