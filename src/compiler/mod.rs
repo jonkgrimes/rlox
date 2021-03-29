@@ -405,13 +405,12 @@ impl<'a> Compiler<'a> {
         match self.end_state() {
             Ok(function) => {
                 let upvalue_count = function.upvalue_count;
-                dbg!(function.name());
                 let closure = Closure::new(function);
                 let index = self.add_constant(Value::Closure(closure));
                 self.emit_opcode(OpCode::Closure(index));
 
                 for i in 0..upvalue_count {
-                    let upvalue = &self.upvalues[i];
+                    let upvalue = self.upvalues[i].clone();
                     if upvalue.local {
                         self.emit_opcode(OpCode::LocalValue(upvalue.index))
                     } else {
@@ -939,8 +938,6 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_upvalue(&mut self, state_idx: usize, name: &Token) -> Option<usize> {
-        dbg!(&self.source[name.as_range()]);
-        dbg!(state_idx);
         if let Some(state) = self.states.get(state_idx) {
             if let Some(enclosing_idx) = state.enclosing {
                 if let Some(index) = self.resolve_local(enclosing_idx, name) {

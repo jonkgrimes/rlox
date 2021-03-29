@@ -328,20 +328,19 @@ impl Vm {
                             stack.push(Value::Closure(closure));
                         }
                         Value::Closure(closure) => {
-                            dbg!(&closure.function);
                             let mut new_closure = closure.clone();
                             for _ in 0..(new_closure.upvalue_count) {
                                 let variable = self.frame().code_at(ip + step);
-                                step += 1;
                                 dbg!(variable);
-                                dbg!(&new_closure.upvalues);
                                 match variable {
                                     OpCode::LocalValue(index) => {
                                         let upvalue = self.capture_upvalue(&stack, self.frame().slots + index);
                                         new_closure.upvalues.push(upvalue);
+                                        step += 1;
                                     },
                                     OpCode::Upvalue(index) => {
-                                        new_closure.upvalues.push(self.frame().closure.upvalues.get(*index).unwrap().clone())
+                                        new_closure.upvalues.push(self.frame().closure.upvalues.get(*index).unwrap().clone());
+                                        step += 1;
                                     },
                                     _ => {
                                         panic!("Tried to resolve an upvalue but received an unexpected instruction")
@@ -439,7 +438,10 @@ impl Vm {
     }
 
     fn capture_upvalue(&self, stack: &Stack, index: usize) -> UpvalueRef {
-        let slots = self.frame().slots;
+        let slots = self.frame().slots - 1;
+        dbg!(&stack);
+        dbg!(slots);
+        dbg!(index);
         let value = &stack[slots + index];
         UpvalueRef::new(false, index)
     }
