@@ -105,7 +105,7 @@ impl OpCode {
             OpCode::Call(arg_count) => println!("{} Call arg_count {}", prefix, arg_count),
             OpCode::Closure(index) => {
                 if let Some(constant) = chunk.constants.get(*index) {
-                    if let Value::Closure(closure) = constant {
+                    if let Value::Object(closure) = constant {
                         println!("{} Closure", prefix)
 /*                         for _ in 0..(closure.function.upvalue_count + 1) {
                             if upvalue.local() {

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::core::{Function, FunctionType, Value, Closure};
+use crate::core::{Closure, Function, FunctionType, Object, Value};
 use crate::vm::OpCode;
 use crate::scanner::{Scanner, Token, TokenKind};
 
@@ -359,7 +359,12 @@ impl<'a> Compiler<'a> {
             .get(constant_index)
             .unwrap();
         let name = match constant {
-            Value::String(string) => string,
+            Value::Object(object) => {
+                match object {
+                    Object::String(string) => string,
+                    _ => "Undefined"
+                }
+            }
             _ => "Undefined",
         };
         let function = Function::new(&name, function_type);
@@ -406,7 +411,7 @@ impl<'a> Compiler<'a> {
             Ok(function) => {
                 let upvalue_count = function.upvalue_count;
                 let closure = Closure::new(function);
-                let index = self.add_constant(Value::Closure(closure));
+                let index = self.add_constant(Value::Object(Object::Closure(closure)));
                 self.emit_opcode(OpCode::Closure(index));
 
                 for i in 0..upvalue_count {
@@ -507,7 +512,7 @@ impl<'a> Compiler<'a> {
     fn identifier_constant(&mut self, token: &Token) -> usize {
         let source = self.source.get((token.start)..(token.start + token.length));
         let identifier = String::from(source.unwrap());
-        self.add_constant(Value::String(identifier))
+        self.add_constant(Value::Object(Object::String(identifier)))
     }
 
     fn add_constant(&mut self, constant: Value) -> usize {
@@ -775,7 +780,7 @@ impl<'a> Compiler<'a> {
                         compiler.strings.insert(value.clone());
                         value
                     };
-                    let index = compiler.add_constant(Value::String(value));
+                    let index = compiler.add_constant(Value::Object(Object::String(value)));
                     compiler.emit_opcode(OpCode::Constant(index));
                 }
                 None => (),

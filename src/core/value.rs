@@ -1,19 +1,16 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::core::Closure;
-use crate::core::Function;
-use crate::core::NativeFunction;
+use crate::core::Object;
+use crate::vm::ObjectId;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
     Nil,
     Bool(bool),
     Number(f32),
-    String(String),
-    Function(Function),
-    NativeFunction(NativeFunction),
-    Closure(Closure),
+    Object(Object),
+    HeapObject(ObjectId)
 }
 
 impl Value {
@@ -39,10 +36,12 @@ impl fmt::Display for Value {
             Value::Nil => write!(f, "nil"),
             Value::Bool(value) => write!(f, "{}", value),
             Value::Number(value) => write!(f, "{}", value),
-            Value::String(value) => write!(f, "{}", *value),
-            Value::Function(function) => write!(f, "{}", function),
-            Value::NativeFunction(function) => write!(f, "{}", function),
-            Value::Closure(closure) => write!(f, "{}", closure),
+            Value::Object(object) => {
+                write!(f, "{:?}", *object)
+            },
+            Value::HeapObject(id) => {
+                write!(f, "{:?}", *id)
+            }
         }
     }
 }

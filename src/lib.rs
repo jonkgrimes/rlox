@@ -244,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn closures() {
         let source = test_file("test/test-28.lox");
         let result = interpret(&source);

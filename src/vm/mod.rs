@@ -1,17 +1,18 @@
+use slotmap::{DefaultKey, SlotMap};
 use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
 
-mod stack;
 mod chunk;
-mod op_code;
 mod heap;
+mod op_code;
+mod stack;
 
 use crate::compiler::compile;
-use crate::core::{Value, UpvalueRef, Function, FunctionType, NativeFunction, Closure};
-use stack::Stack;
+use crate::core::{Closure, Function, FunctionType, NativeFunction, UpvalueRef, Value, Object};
 pub use chunk::Chunk;
+pub use heap::{Heap, ObjectId};
 pub use op_code::OpCode;
-pub use heap::{ObjectId, Heap};
+use stack::Stack;
 
 const FRAMES_MAX: usize = 64;
 
@@ -32,7 +33,7 @@ macro_rules! bin_op {
 
 pub struct Vm {
     frames: Vec<CallFrame>,
-    frame_count: usize,
+    heap: SlotMap<DefaultKey, Object>,
 }
 
 #[derive(Debug)]
@@ -68,7 +69,7 @@ impl Vm {
     pub fn new() -> Vm {
         Vm {
             frames: Vec::new(),
-            frame_count: 0,
+            heap: SlotMap::new(),
         }
     }
 
@@ -100,10 +101,9 @@ impl Vm {
         let mut globals: HashMap<String, Value> = HashMap::new();
         // Define native functions here
         let clock = clock();
-        globals.insert("clock".to_string(), Value::NativeFunction(clock));
+        globals.insert("clock".to_string(), Value::Object(Object::NativeFunction(clock)));
 
         let mut stack: Stack = Stack::new();
-        let mut heap: Heap = Heap::new();
 
         if cfg!(feature = "debug") {
             self.print_iseq();
@@ -125,10 +125,22 @@ impl Vm {
                     let a = stack.peek(0).clone();
                     let b = stack.peek(1).clone();
                     match a {
-                        Value::String(a) => match b {
-                            Value::String(b) => {
+                        Value::HeapObject(a) => match b {
+                            Value::HeapObject(b) => {
                                 stack.pop();
                                 stack.pop();
+                                let a = match self.heap.get(a) {
+                                  Some(Object::String(a)) => a,
+                                    _ => break VmResult::RuntimeError(String::from(
+                                        "Operand must be a number.",
+                                    ))
+                                };
+                                let b = match self.heap.get(b) {
+                                  Some(Object::String(b)) => b,
+                                    _ => break VmResult::RuntimeError(String::from(
+                                        "Operand must be a number.",
+                                    ))
+                                };
                                 let mut new_string = String::from(b);
                                 new_string.push_str(&a);
                                 let new_object =
@@ -137,7 +149,8 @@ impl Vm {
                                     } else {
                                         new_string
                                     };
-                                stack.push(Value::String(new_object));
+                                let id = self.heap.insert(Object::String(new_object));
+                                stack.push(Value::HeapObject(id));
                             }
                             _ => {
                                 break VmResult::RuntimeError(String::from(
@@ -216,9 +229,26 @@ impl Vm {
                     let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
-                            Value::String(obj) => {
+                            Value::HeapObject(id) => {
                                 let value = stack.peek(0).clone();
-                                globals.insert(obj.clone(), value);
+                                let s =  match self.heap.get(*id) {
+                                    Some(Object::String(s)) => s,
+                                    _ => break VmResult::RuntimeError(String::from(
+                                        "Cannot resolve variable name.",
+                                    ))
+                                };
+                                globals.insert(s.clone(), value);
+                                stack.pop();
+                            }
+                            Value::Object(obj) => {
+                                let value = stack.peek(0).clone();
+                                let s = match obj {
+                                    Object::String(s) => s,
+                                    _ => break VmResult::RuntimeError(String::from(
+                                        "Cannot resolve variable name.",
+                                    ))
+                                };
+                                globals.insert(s.clone(), value);
                                 stack.pop();
                             }
                             _ => {
@@ -233,7 +263,30 @@ impl Vm {
                     let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
-                            Value::String(s) => {
+                            Value::HeapObject(key) => {
+                                let s = match self.heap.get(*key) {
+                                    Some(Object::String(s)) => s,
+                                    _ => break VmResult::RuntimeError(String::from(
+                                        "Cannot resolve variable name.",
+                                    ))
+                                };
+                                let value = globals.get(s);
+                                match value {
+                                    Some(value) => stack.push(value.clone()),
+                                    _ => {
+                                        break VmResult::RuntimeError(
+                                            "Cannot resolve variable name.".to_string(),
+                                        )
+                                    }
+                                }
+                            }
+                            Value::Object(obj) => {
+                                let s = match obj {
+                                    Object::String(s) => s,
+                                    _ => break VmResult::RuntimeError(
+                                        "Cannot resolve variabl name.".to_string()
+                                    )
+                                };
                                 let value = globals.get(s);
                                 match value {
                                     Some(value) => stack.push(value.clone()),
@@ -256,8 +309,15 @@ impl Vm {
                     let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
-                            Value::String(s) => {
+                            Value::HeapObject(key) => {
                                 let value = stack.peek(0).clone();
+                                let s = match self.heap.get(*key) {
+                                    Some(Object::String(s)) => s,
+                                    _ => {
+                                        let error = format!("Undefined variable '{}'", value);
+                                        break VmResult::RuntimeError(error);
+                                    }
+                                };
                                 match globals.insert(s.clone(), value) {
                                     Some(_) => (),
                                     None => {
@@ -288,6 +348,7 @@ impl Vm {
                 OpCode::SetUpvalue(index) => {
                     let slots = self.frame().slots;
                     let value = stack.peek(0);
+                    dbg!(slots + *index);
                     stack[slots + *index] = value.clone();
                 }
                 OpCode::GetUpvalue(index) => {
@@ -322,33 +383,41 @@ impl Vm {
                 OpCode::Closure(index) => {
                     let constant = self.frame().get_constant(*index).unwrap();
                     match constant {
-                        Value::Function(function) => {
-                            dbg!("function");
-                            let closure = Closure::new(function.clone());
-                            stack.push(Value::Closure(closure));
-                        }
-                        Value::Closure(closure) => {
+                        Value::HeapObject(key) => {
+                            let closure = match self.heap.get(*key) {
+                                Some(Object::Closure(closure )) => closure,
+                                _ => panic!("Attempted to execute closure but none found")
+                            };
                             let mut new_closure = closure.clone();
                             for _ in 0..(new_closure.upvalue_count) {
                                 let variable = self.frame().code_at(ip + step);
                                 dbg!(variable);
                                 match variable {
                                     OpCode::LocalValue(index) => {
-                                        let upvalue = self.capture_upvalue(&stack, self.frame().slots + index);
+                                        let upvalue = self
+                                            .capture_upvalue(&stack, self.frame().slots + index);
                                         new_closure.upvalues.push(upvalue);
                                         step += 1;
-                                    },
+                                    }
                                     OpCode::Upvalue(index) => {
-                                        new_closure.upvalues.push(self.frame().closure.upvalues.get(*index).unwrap().clone());
+                                        new_closure.upvalues.push(
+                                            self.frame()
+                                                .closure
+                                                .upvalues
+                                                .get(*index)
+                                                .unwrap()
+                                                .clone(),
+                                        );
                                         step += 1;
-                                    },
+                                    }
                                     _ => {
                                         panic!("Tried to resolve an upvalue but received an unexpected instruction")
                                     }
                                 }
                             }
-                            stack.push(Value::Closure(new_closure))
-                        },
+                            let key = self.heap.insert(Object::Closure(new_closure));
+                            stack.push(Value::HeapObject(key))
+                        }
                         _ => panic!("Received a value that was not a function!"),
                     }
                 }
@@ -394,15 +463,26 @@ impl Vm {
         arg_count: usize,
     ) -> (bool, FunctionType) {
         match callee {
-            Value::Closure(closure) => (
-                self.call(stack.top(), closure, arg_count),
-                FunctionType::Function,
-            ),
-            Value::NativeFunction(function) => {
-                let result = (function.function)();
-                stack.pop();
-                stack.push(result);
-                (true, FunctionType::Native)
+            Value::HeapObject(key) => {
+                let obj = self.heap.get(key).unwrap();
+                if let Object::Closure(closure ) = obj {
+                (
+                    self.call(stack.top(), closure.clone(), arg_count),
+                    FunctionType::Function,
+                ) } else {
+                    panic!("Function not found")
+                }
+            }
+            Value::HeapObject(key) => {
+                let obj = self.heap.get(key).unwrap();
+                if let Object::NativeFunction(function) = obj {
+                    let result = (function.function)();
+                    stack.pop();
+                    stack.push(result);
+                    (true, FunctionType::Native)
+                } else {
+                    panic!("Native function not found")
+                }
             }
             _ => (false, FunctionType::Script),
         }
