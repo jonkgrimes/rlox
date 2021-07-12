@@ -340,6 +340,24 @@ impl Vm {
                     let constant = self.frame().get_constant(*index);
                     if let Some(constant) = constant {
                         match constant {
+                            Value::Object(obj) => {
+                                let value = stack.peek(0);
+                                let s = match obj {
+                                    Object::String(s) => s,
+                                    _ => {
+                                        let error = format!("Undefined variable '{}'", value);
+                                        break VmResult::RuntimeError(error);
+                                    }
+                                };
+                                match globals.insert(s.clone(), value.clone()) {
+                                    Some(_) => (),
+                                    None => {
+                                        let error = format!("Undefined variable '{}'", s);
+                                        globals.remove(s);
+                                        break VmResult::RuntimeError(error);
+                                    }
+                                }
+                            }
                             Value::HeapObject(key) => {
                                 let value = stack.peek(0).clone();
                                 let s = match self.heap.get(*key) {
@@ -414,6 +432,42 @@ impl Vm {
                 OpCode::Closure(index) => {
                     let constant = self.frame().get_constant(*index).unwrap();
                     match constant {
+                        Value::Object(obj) => {
+                            match obj {
+                                Object::Closure(closure) => {
+                                    let mut new_closure = closure.clone();
+                                    for _ in 0..(new_closure.upvalue_count) {
+                                        let variable = self.frame().code_at(ip + step);
+                                        match variable {
+                                            OpCode::LocalValue(index) => {
+                                                let upvalue = self
+                                                    .capture_upvalue(&stack, self.frame().slots + index);
+                                                new_closure.upvalues.push(upvalue);
+                                                step += 1;
+                                            }
+                                            OpCode::Upvalue(index) => {
+                                                new_closure.upvalues.push(
+                                                    self.frame()
+                                                        .closure
+                                                        .upvalues
+                                                        .get(*index)
+                                                        .unwrap()
+                                                        .clone(),
+                                                );
+                                                step += 1;
+                                            }
+                                            _ => {
+                                                panic!("Tried to resolve an upvalue but received an unexpected instruction")
+                                            }
+                                        }
+                                    }
+                                    stack.push(Value::Object(Object::Closure(new_closure)))
+                                },
+                                _ => {
+                                    panic!("Received a value that was not a function!")
+                                }
+                            }
+                        }
                         Value::HeapObject(key) => {
                             let closure = match self.heap.get(*key) {
                                 Some(Object::Closure(closure)) => closure,
@@ -422,7 +476,6 @@ impl Vm {
                             let mut new_closure = closure.clone();
                             for _ in 0..(new_closure.upvalue_count) {
                                 let variable = self.frame().code_at(ip + step);
-                                dbg!(variable);
                                 match variable {
                                     OpCode::LocalValue(index) => {
                                         let upvalue = self
@@ -494,26 +547,39 @@ impl Vm {
         arg_count: usize,
     ) -> (bool, FunctionType) {
         match callee {
-            Value::HeapObject(key) => {
-                let obj = self.heap.get(key).unwrap();
-                if let Object::Closure(closure) = obj {
-                    (
-                        self.call(stack.top(), closure.clone(), arg_count),
-                        FunctionType::Function,
-                    )
-                } else {
-                    panic!("Function not found")
+            Value::Object(obj) => {
+                match obj {
+                    Object::Closure(closure) => {
+                        (
+                            self.call(stack.top(), closure.clone(), arg_count),
+                            FunctionType::Function,
+                        )
+                    }
+                    Object::NativeFunction(function) => {
+                        let result = (function.function)();
+                        stack.pop();
+                        stack.push(result);
+                        (true, FunctionType::Native)
+                    }
+                    _ => panic!("Function not found")
                 }
             }
             Value::HeapObject(key) => {
                 let obj = self.heap.get(key).unwrap();
-                if let Object::NativeFunction(function) = obj {
-                    let result = (function.function)();
-                    stack.pop();
-                    stack.push(result);
-                    (true, FunctionType::Native)
-                } else {
-                    panic!("Native function not found")
+                match obj {
+                    Object::Closure(closure) => {
+                        (
+                            self.call(stack.top(), closure.clone(), arg_count),
+                            FunctionType::Function,
+                        )
+                    }
+                    Object::NativeFunction(function) => {
+                        let result = (function.function)();
+                        stack.pop();
+                        stack.push(result);
+                        (true, FunctionType::Native)
+                    }
+                    _ => panic!("Function not found")
                 }
             }
             _ => (false, FunctionType::Script),

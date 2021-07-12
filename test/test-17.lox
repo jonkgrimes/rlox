@@ -3,4 +3,4 @@ fun areWeHavingFunYet() {
   print a;
 }
 
-print areWeHavingFunYet;
+print areWeHavingFunYet();
