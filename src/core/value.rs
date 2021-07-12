@@ -37,7 +37,7 @@ impl fmt::Display for Value {
             Value::Bool(value) => write!(f, "{}", value),
             Value::Number(value) => write!(f, "{}", value),
             Value::Object(object) => {
-                write!(f, "{:?}", *object)
+                write!(f, "{}", *object)
             },
             Value::HeapObject(id) => {
                 write!(f, "{:?}", *id)

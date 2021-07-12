@@ -8,7 +8,7 @@ mod op_code;
 mod stack;
 
 use crate::compiler::compile;
-use crate::core::{Closure, Function, FunctionType, NativeFunction, UpvalueRef, Value, Object};
+use crate::core::{Closure, Function, FunctionType, NativeFunction, Object, UpvalueRef, Value};
 pub use chunk::Chunk;
 pub use heap::{Heap, ObjectId};
 pub use op_code::OpCode;
@@ -101,7 +101,10 @@ impl Vm {
         let mut globals: HashMap<String, Value> = HashMap::new();
         // Define native functions here
         let clock = clock();
-        globals.insert("clock".to_string(), Value::Object(Object::NativeFunction(clock)));
+        globals.insert(
+            "clock".to_string(),
+            Value::Object(Object::NativeFunction(clock)),
+        );
 
         let mut stack: Stack = Stack::new();
 
@@ -125,32 +128,52 @@ impl Vm {
                     let a = stack.peek(0).clone();
                     let b = stack.peek(1).clone();
                     match a {
-                        Value::HeapObject(a) => match b {
-                            Value::HeapObject(b) => {
+                        Value::Object(a) => match b {
+                            Value::Object(b) => {
                                 stack.pop();
                                 stack.pop();
-                                let a = match self.heap.get(a) {
-                                  Some(Object::String(a)) => a,
-                                    _ => break VmResult::RuntimeError(String::from(
-                                        "Operand must be a number.",
-                                    ))
-                                };
-                                let b = match self.heap.get(b) {
-                                  Some(Object::String(b)) => b,
-                                    _ => break VmResult::RuntimeError(String::from(
-                                        "Operand must be a number.",
-                                    ))
-                                };
-                                let mut new_string = String::from(b);
-                                new_string.push_str(&a);
+                                let mut new_string = b.to_string();
+                                new_string.push_str(&a.to_string());
                                 let new_object =
                                     if let Some(existing_string) = strings.get(&new_string) {
                                         existing_string.to_string()
                                     } else {
                                         new_string
                                     };
-                                let id = self.heap.insert(Object::String(new_object));
-                                stack.push(Value::HeapObject(id));
+                                stack.push(Value::Object(Object::String(new_object)));
+                            }
+                            _ => {
+                                break VmResult::RuntimeError(String::from(
+                                    "Operand must be a number.",
+                                ))
+                            }
+                        },
+                        Value::HeapObject(a_key) => match b {
+                            Value::HeapObject(b_key) => {
+                                stack.pop();
+                                stack.pop();
+                                match self.heap.remove(a_key) {
+                                    Some(Object::String(a)) => {
+                                        match self.heap.get_mut(b_key) {
+                                            Some(Object::String(b)) => {
+                                                dbg!(&b);
+                                                dbg!(&a);
+                                                b.push_str(&a);
+                                            }
+                                            _ => {
+                                                break VmResult::RuntimeError(String::from(
+                                                    "Operand must be a number.",
+                                                ))
+                                            }
+                                        };
+                                    }
+                                    _ => {
+                                        break VmResult::RuntimeError(String::from(
+                                            "Operand must be a number.",
+                                        ))
+                                    }
+                                };
+                                stack.push(Value::HeapObject(b_key));
                             }
                             _ => {
                                 break VmResult::RuntimeError(String::from(
@@ -231,11 +254,13 @@ impl Vm {
                         match constant {
                             Value::HeapObject(id) => {
                                 let value = stack.peek(0).clone();
-                                let s =  match self.heap.get(*id) {
+                                let s = match self.heap.get(*id) {
                                     Some(Object::String(s)) => s,
-                                    _ => break VmResult::RuntimeError(String::from(
-                                        "Cannot resolve variable name.",
-                                    ))
+                                    _ => {
+                                        break VmResult::RuntimeError(String::from(
+                                            "Cannot resolve variable name.",
+                                        ))
+                                    }
                                 };
                                 globals.insert(s.clone(), value);
                                 stack.pop();
@@ -244,9 +269,11 @@ impl Vm {
                                 let value = stack.peek(0).clone();
                                 let s = match obj {
                                     Object::String(s) => s,
-                                    _ => break VmResult::RuntimeError(String::from(
-                                        "Cannot resolve variable name.",
-                                    ))
+                                    _ => {
+                                        break VmResult::RuntimeError(String::from(
+                                            "Cannot resolve variable name.",
+                                        ))
+                                    }
                                 };
                                 globals.insert(s.clone(), value);
                                 stack.pop();
@@ -266,9 +293,11 @@ impl Vm {
                             Value::HeapObject(key) => {
                                 let s = match self.heap.get(*key) {
                                     Some(Object::String(s)) => s,
-                                    _ => break VmResult::RuntimeError(String::from(
-                                        "Cannot resolve variable name.",
-                                    ))
+                                    _ => {
+                                        break VmResult::RuntimeError(String::from(
+                                            "Cannot resolve variable name.",
+                                        ))
+                                    }
                                 };
                                 let value = globals.get(s);
                                 match value {
@@ -283,9 +312,11 @@ impl Vm {
                             Value::Object(obj) => {
                                 let s = match obj {
                                     Object::String(s) => s,
-                                    _ => break VmResult::RuntimeError(
-                                        "Cannot resolve variabl name.".to_string()
-                                    )
+                                    _ => {
+                                        break VmResult::RuntimeError(
+                                            "Cannot resolve variabl name.".to_string(),
+                                        )
+                                    }
                                 };
                                 let value = globals.get(s);
                                 match value {
@@ -385,8 +416,8 @@ impl Vm {
                     match constant {
                         Value::HeapObject(key) => {
                             let closure = match self.heap.get(*key) {
-                                Some(Object::Closure(closure )) => closure,
-                                _ => panic!("Attempted to execute closure but none found")
+                                Some(Object::Closure(closure)) => closure,
+                                _ => panic!("Attempted to execute closure but none found"),
                             };
                             let mut new_closure = closure.clone();
                             for _ in 0..(new_closure.upvalue_count) {
@@ -465,11 +496,12 @@ impl Vm {
         match callee {
             Value::HeapObject(key) => {
                 let obj = self.heap.get(key).unwrap();
-                if let Object::Closure(closure ) = obj {
-                (
-                    self.call(stack.top(), closure.clone(), arg_count),
-                    FunctionType::Function,
-                ) } else {
+                if let Object::Closure(closure) = obj {
+                    (
+                        self.call(stack.top(), closure.clone(), arg_count),
+                        FunctionType::Function,
+                    )
+                } else {
                     panic!("Function not found")
                 }
             }
